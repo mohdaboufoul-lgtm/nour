@@ -73,6 +73,7 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "nour/core/clock.py" = ["DTZ"]
+"nour/core/errors.py" = ["N818"]  # exception names are fixed by DESIGN §3.2
 
 [tool.mypy]
 python_version = "3.11"
