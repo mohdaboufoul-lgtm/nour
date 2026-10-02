@@ -12,7 +12,21 @@ grants and row-level security enforce in production (DESIGN §4a):
   partition;
 * flushed ``DESK_ROW`` rows must carry the token's desk; append-only mappers refuse UPDATE/DELETE
   at the ORM level (the DB trigger is the real wall); single-transition columns change only from
-  NULL and forward-only statuses only move forward;
+  NULL, the rows of a single-transition mapper are never deleted, immutable columns never change
+  after INSERT, and forward-only statuses only move forward;
+* a desk-partitioned SHARED mapper (``__desk_partitioned__``: ``inbox_event``) is partitioned like
+  a DESK_ROW mapper for a desk token — reads, updates and deletes see the token's partition only,
+  while an INSERT may target either desk (publishing an event to the other desk) and a
+  GovernanceToken sees and writes every partition;
+* the per-table, per-role grants of ``Table.info[GRANTS_KEY]`` (``nour.db.engine``) are enforced
+  for the token's roles (``grant_for_desk``): a desk may only ack an ``inbox_event`` (and may not
+  insert one carrying the ingress-recorded ``signature_valid`` / ``passphrase_attempt``), may not
+  author a ``handoff`` unless it is the Assistant, may not delete a ``dnc_entry`` — exactly what
+  the Postgres grants of ``pg_roles_ddl`` refuse;
+* the ``passphrase*`` columns of a GOVERNANCE_ONLY mapper (``hidden_columns``) are never loaded by
+  a desk token: they are mapped ``deferred``, and a statement, loader option (``undefer``,
+  ``load_only``, ``undefer_group``) or attribute refresh that names one is refused — the mirror
+  of the desks' column-level SELECT grant on Postgres;
 * only ORM statements over mapped classes pass, and only the parts of them SQLAlchemy can
   partition. ``with_loader_criteria`` adds ``desk = :desk`` for every ORM *entity* of every SELECT
   (and DML) in the statement: the mapped classes and attributes in its columns, FROM list, JOIN
@@ -121,7 +135,14 @@ from nour.core.errors import AppendOnlyViolation, DeskWallViolation, SingleTrans
 from nour.core.tokens import AuditorToken, DeskToken, require_minted
 from nour.core.types import Desk
 from nour.db.base import MAPPER_INFO_KEY, Scope, scope_allows, scope_of
-from nour.db.engine import DESK_SETTING, WRITER_OPTION, is_read_only
+from nour.db.engine import (
+    DESK_SETTING,
+    WRITER_OPTION,
+    RoleGrant,
+    grant_for_desk,
+    hidden_columns,
+    is_read_only,
+)
 
 READER_INFO_KEY = "nour_reader"
 """``session.info`` flag: the session came from ``SessionFactory.session()`` and may not write."""
@@ -228,6 +249,11 @@ class _StatementScan:
 
     def __init__(self) -> None:
         self.classes: dict[type[Any], None] = {}
+        self.columns: list[tuple[type[Any], str]] = []  # (mapped class, column name) referenced
+        self.undefers: list[tuple[type[Any] | None, frozenset[str] | None]] = []
+        """Loader options that load deferred columns: ``(class, column names)`` for an attribute
+        option, ``(class, None)`` for a wildcard on one entity, ``(None, None)`` for an unbound
+        wildcard (``undefer("*")``) that applies to every entity of the statement."""
         self.saw_table = False
         self._scopes: list[_Scope] = []
         self._descended: set[int] = set()
@@ -374,17 +400,34 @@ class _StatementScan:
 
     def _load_options(self, options: Iterable[Any]) -> None:
         """Loader options name the mappers a relationship load will touch (``selectinload``
-        statements are hooked on their own; ``joinedload`` joins inside this statement)."""
+        statements are hooked on their own; ``joinedload`` joins inside this statement) and the
+        deferred columns an ``undefer`` / ``load_only`` / ``undefer_group`` would load."""
         for option in options:
             if not isinstance(option, Load):
+                # an unbound wildcard such as undefer("*") / undefer_group("x") / defer("*")
+                if _undefers(getattr(option, "strategy", None), getattr(option, "local_opts", {})):
+                    self.undefers.append((None, None))
                 continue
             for element in getattr(option, "context", ()):
                 path = getattr(getattr(element, "path", None), "path", ())
+                entity: Mapper[Any] | None = None
                 for step in path:
                     for attribute in ("mapper", "parent"):
                         mapper = getattr(step, attribute, None)
                         if isinstance(mapper, Mapper):
                             self.classes.setdefault(mapper.class_, None)
+                            entity = mapper
+                if entity is None or not _undefers(
+                    getattr(element, "strategy", None), getattr(element, "local_opts", {})
+                ):
+                    continue
+                last = path[-1] if path else None
+                prop_columns = getattr(last, "columns", None)
+                if prop_columns is not None:  # an attribute: undefer(Model.column)
+                    names = frozenset(getattr(column, "name", "") for column in prop_columns)
+                    self.undefers.append((entity.class_, names))
+                else:  # a token such as column:* on one entity
+                    self.undefers.append((entity.class_, None))
 
     # --- elements
 
@@ -433,6 +476,8 @@ class _StatementScan:
             mapper = _mapper_of(element)
             if mapper is not None:
                 self.classes.setdefault(mapper.class_, None)
+                if isinstance(element.name, str):
+                    self.columns.append((mapper.class_, element.name))
             table = element.table
             if table is None:
                 return
@@ -554,6 +599,31 @@ class _StatementScan:
             raise DeskWallViolation(_VERBATIM_MESSAGE.format(what="with_hint()"))
 
 
+def _undefers(strategy: Any, local_opts: Any) -> bool:
+    """Does a loader element load deferred columns? ``undefer`` / ``load_only`` carry the
+    strategy ``('deferred', False)``; ``undefer_group`` an ``undefer_group_<name>`` option."""
+    if strategy and ("deferred", False) in tuple(strategy):
+        return True
+    return any(str(key).startswith("undefer_group_") for key in (local_opts or {}))
+
+
+def _table_of(cls: type[Any]) -> Table | None:
+    table = getattr(cls, "__table__", None)
+    return table if isinstance(table, Table) else None
+
+
+def _column_names(mapper: Mapper[Any], keys: Iterable[str]) -> set[str]:
+    """The database column names behind mapped attribute ``keys`` (``meta`` → ``metadata``)."""
+    names: set[str] = set()
+    for key in keys:
+        prop = mapper.attrs.get(key)
+        for column in getattr(prop, "columns", ()) or ():
+            name = getattr(column, "name", None)
+            if isinstance(name, str):
+                names.add(name)
+    return names
+
+
 class GuardedSession(Session):
     """The ``Session`` subclass every ``SessionFactory`` opens: the paths SQLAlchemy offers around
     the ORM hooks are closed here (SPEC §5; DESIGN §4a)."""
@@ -584,10 +654,13 @@ class DeskWallGuard:
 
     Beyond the DESIGN summary (see the module docstring): every statement is walked by
     ``_StatementScan`` — raw/verbatim SQL, Core statements and bare table references the ORM would
-    not partition are refused and the loader criteria are registered for every DESK_ROW mapper of
-    the registry; bulk DML on a DESK_ROW mapper is checked for the desk it writes (and may not
-    upsert); reader sessions may not write; the auditor's report writer may only INSERT into
-    AUDITOR_WRITE mappers."""
+    not partition are refused and the loader criteria are registered for every DESK_ROW (and, for
+    a desk token, desk-partitioned) mapper of the registry; bulk DML on a partitioned mapper is
+    checked for the desk it writes (and may not upsert); the rows of a single-transition mapper
+    are never deleted and ``__immutable__`` columns never updated; the per-role grants of
+    ``GRANTS_KEY`` are enforced for the token's roles; the hidden ``passphrase*`` columns of a
+    GOVERNANCE_ONLY mapper are never loaded by a desk; reader sessions may not write; the
+    auditor's report writer may only INSERT into AUDITOR_WRITE mappers."""
 
     def __init__(self, token: DeskToken | AuditorToken) -> None:
         if not isinstance(token, DeskToken | AuditorToken):
@@ -639,6 +712,7 @@ class DeskWallGuard:
             raise DeskWallViolation("reader session: use SessionFactory.write() to change rows")
         if info.get(REPORT_INFO_KEY) and (state.is_update or state.is_delete):
             raise DeskWallViolation("append_report() may only INSERT auditor rows")
+        rows = self._dml_rows(statement, state.parameters) if is_dml else []
         for cls in classes:
             self.check_scope(cls, write=write)
             if (
@@ -647,17 +721,129 @@ class DeskWallGuard:
                 and getattr(cls, "__append_only__", False)
             ):
                 raise AppendOnlyViolation(f"{cls.__name__} is append-only; UPDATE/DELETE refused")
-            if scope_of(cls) is Scope.DESK_ROW:
+            if write and state.is_delete and bool(getattr(cls, "__single_transition__", None)):
+                raise AppendOnlyViolation(
+                    f"{cls.__name__} rows are never deleted (insert + transition only)"
+                )
+            if self._partitioned(cls):
                 desk = self.desk
                 if desk is None:
                     raise DeskWallViolation(
                         f"{self._who()} has no desk partition for {cls.__name__}"
                     )
                 if state.is_insert or state.is_update:
-                    self._check_dml_desk(cls, state, desk)
+                    self._check_dml_desk(cls, state, rows, desk)
+            if write and state.is_update:
+                self._check_immutable_dml(cls, rows)
+            if write:
+                self._check_grant_dml(cls, state, rows)
+        self._check_hidden(classes, scan, state)
         options = self._partition_options(classes)
         if options:
             state.statement = state.statement.options(*options)
+
+    def _partitioned(self, cls: type[Any]) -> bool:
+        """Is ``cls`` partitioned on ``desk`` for this token? Every DESK_ROW mapper is (the
+        governance token owns the empty ``governance`` partition); a desk-partitioned SHARED
+        mapper is for a desk token only — governance sees every partition."""
+        if scope_of(cls) is Scope.DESK_ROW:
+            return True
+        return bool(getattr(cls, "__desk_partitioned__", False)) and self.desk in (
+            Desk.OPERATOR,
+            Desk.ASSISTANT,
+        )
+
+    # --- immutable columns, grants and hidden columns on statements
+
+    def _check_immutable_dml(self, cls: type[Any], rows: list[dict[str, Any]]) -> None:
+        frozen = set(getattr(cls, "__immutable__", ()))
+        if not frozen:
+            return
+        touched = sorted({key for row in rows for key in row} & frozen)
+        if touched:
+            raise SingleTransitionViolation(
+                f"{cls.__name__}.{touched[0]} is immutable after INSERT (UPDATE refused)"
+            )
+
+    def _grant(self, cls: type[Any]) -> RoleGrant | None:
+        desk = self.desk
+        table = _table_of(cls)
+        if desk is None or table is None:
+            return None
+        return grant_for_desk(table, desk.value)
+
+    def _check_grant_dml(self, cls: type[Any], state: ORMExecuteState, rows: list[dict]) -> None:
+        grant = self._grant(cls)
+        if grant is None:
+            return
+        if state.is_insert:
+            for row in rows or [{}]:
+                if not grant.may_insert(row):
+                    raise DeskWallViolation(
+                        f"{self._who()} may not INSERT {cls.__name__} rows naming "
+                        f"{sorted(row)} (grant)"
+                    )
+        elif state.is_update:
+            columns = {key for row in rows for key in row}
+            if not grant.may_update(columns):
+                raise DeskWallViolation(
+                    f"{self._who()} may not UPDATE {cls.__name__} columns {sorted(columns)} (grant)"
+                )
+        elif state.is_delete and not grant.delete:
+            raise DeskWallViolation(f"{self._who()} may not DELETE {cls.__name__} rows (grant)")
+
+    def _check_hidden(
+        self, classes: Iterable[type[Any]], scan: _StatementScan, state: ORMExecuteState
+    ) -> None:
+        """A desk token never loads a hidden column (``hidden_columns``): not through the
+        statement's columns, not through a loader option and not through a deferred attribute
+        refresh. The columns must be mapped ``deferred`` for ``select(Model)`` to stay clean;
+        a hidden column mapped eagerly fails the statement closed."""
+        if self.desk not in (Desk.OPERATOR, Desk.ASSISTANT):
+            return
+        hidden_by_class: dict[type[Any], frozenset[str]] = {}
+        for cls in classes:
+            table = _table_of(cls)
+            hidden = hidden_columns(table) if table is not None else frozenset()
+            if hidden:
+                hidden_by_class[cls] = hidden
+        if not hidden_by_class:
+            return
+        who = self._who()
+        for cls, hidden in hidden_by_class.items():
+            mapper = inspect(cls)
+            for prop in mapper.column_attrs:
+                if any(getattr(c, "name", None) in hidden for c in prop.columns) and not getattr(
+                    prop, "deferred", False
+                ):
+                    raise DeskWallViolation(
+                        f"{cls.__name__}.{prop.key} is hidden from desks but not mapped "
+                        "deferred; the statement would load it"
+                    )
+            only = getattr(
+                getattr(state.statement, "_compile_options", None), "_only_load_props", None
+            )
+            if state.is_column_load and only:
+                named = _column_names(mapper, only) & hidden
+                if named:
+                    raise DeskWallViolation(
+                        f"{who} may not load {cls.__name__}.{sorted(named)[0]} (hidden column)"
+                    )
+        for cls, column in scan.columns:
+            if column in hidden_by_class.get(cls, frozenset()):
+                raise DeskWallViolation(
+                    f"{who} may not read {cls.__name__}.{column} (hidden column)"
+                )
+        for cls_or_none, names in scan.undefers:
+            targets = [cls_or_none] if cls_or_none is not None else list(hidden_by_class)
+            for cls in targets:
+                hidden_cols = hidden_by_class.get(cls)
+                if not hidden_cols:
+                    continue
+                if names is None or names & hidden_cols:
+                    raise DeskWallViolation(
+                        f"{who} may not undefer the hidden columns of {cls.__name__}"
+                    )
 
     def _partition_options(self, classes: Iterable[type[Any]]) -> tuple[Any, ...]:
         """``with_loader_criteria(desk == token.desk)`` for every ``DESK_ROW`` mapper of every
@@ -688,9 +874,13 @@ class DeskWallGuard:
         without a mapped ``desk`` column — a class mapped around ``Base`` (which refuses and
         un-maps that shape) or re-marked after mapping — cannot be partitioned, so the statement
         is refused rather than run against an open partition (fail closed, SPEC §5)."""
+        real_desk = desk in (Desk.OPERATOR, Desk.ASSISTANT)
         for mapper in sorted(mappers, key=lambda m: m.class_.__qualname__):
             cls = mapper.class_
-            if scope_of(cls) is not Scope.DESK_ROW:
+            partitioned = scope_of(cls) is Scope.DESK_ROW or (
+                real_desk and bool(getattr(cls, "__desk_partitioned__", False))
+            )
+            if not partitioned:
                 continue
             desk_column = getattr(cls, "desk", None)
             if not isinstance(desk_column, QueryableAttribute):
@@ -703,13 +893,20 @@ class DeskWallGuard:
 
     # --- bulk DML on a DESK_ROW mapper: the desk VALUE, not only the WHERE
 
-    def _check_dml_desk(self, cls: type[Any], state: ORMExecuteState, desk: Desk) -> None:
+    def _check_dml_desk(
+        self, cls: type[Any], state: ORMExecuteState, rows: list[dict[str, Any]], desk: Desk
+    ) -> None:
         """An ``insert(Model)`` must give every row ``desk == token.desk`` (literally, never through
-        an expression or a sub-select) and may not carry ``ON CONFLICT DO UPDATE`` (on SQLite the
-        conflicting row may belong to the other partition; Postgres RLS refuses that itself); an
-        ``update(Model)`` may not set ``desk`` at all."""
+        an expression or a sub-select) — any real desk for a desk-partitioned mapper, where a
+        desk publishes rows for the other one — and may not carry ``ON CONFLICT DO UPDATE`` (on
+        SQLite the conflicting row may belong to the other partition; Postgres RLS refuses that
+        itself); an ``update(Model)`` may not set ``desk`` at all."""
         statement = state.statement
-        rows = self._dml_rows(statement, state.parameters)
+        allowed = (
+            {Desk.OPERATOR, Desk.ASSISTANT}
+            if scope_of(cls) is not Scope.DESK_ROW and getattr(cls, "__desk_partitioned__", False)
+            else {desk}
+        )
         if state.is_update:
             if any("desk" in row for row in rows):
                 raise DeskWallViolation(
@@ -750,7 +947,7 @@ class DeskWallGuard:
                 raise DeskWallViolation(
                     f"{cls.__name__}.desk must be a literal desk value in an INSERT"
                 ) from None
-            if given is not desk:
+            if given not in allowed:
                 raise DeskWallViolation(
                     f"{self._who()} may not write a {cls.__name__} row for desk {given.value!r}"
                 )
@@ -798,24 +995,34 @@ class DeskWallGuard:
         for obj in new:
             cls = type(obj)
             self.check_scope(cls, write=True)
-            self._check_desk(obj)
+            self._check_desk(obj, new=True)
+            self._check_grant_insert(obj)
         for obj in dirty:
             cls = type(obj)
             self.check_scope(cls, write=True)
             if getattr(cls, "__append_only__", False):
                 raise AppendOnlyViolation(f"{cls.__name__} is append-only; rows cannot change")
-            self._check_desk(obj)
+            self._check_desk(obj, new=False)
             self._check_single_transition(obj)
             self._check_forward_only(obj)
+            self._check_immutable(obj)
+            self._check_grant_update(obj)
         for obj in deleted:
             cls = type(obj)
             self.check_scope(cls, write=True)
             if getattr(cls, "__append_only__", False):
                 raise AppendOnlyViolation(f"{cls.__name__} is append-only; rows cannot be deleted")
+            if getattr(cls, "__single_transition__", ()):
+                raise AppendOnlyViolation(
+                    f"{cls.__name__} rows are never deleted (insert + transition only)"
+                )
+            grant = self._grant(cls)
+            if grant is not None and not grant.delete:
+                raise DeskWallViolation(f"{self._who()} may not DELETE {cls.__name__} rows (grant)")
 
-    def _check_desk(self, obj: Any) -> None:
+    def _check_desk(self, obj: Any, *, new: bool) -> None:
         cls = type(obj)
-        if scope_of(cls) is not Scope.DESK_ROW:
+        if not self._partitioned(cls):
             return
         desk = self.desk
         value = getattr(obj, "desk", None)
@@ -823,10 +1030,71 @@ class DeskWallGuard:
             raise DeskWallViolation(
                 f"{cls.__name__} row must carry desk={desk.value if desk else None!r}"
             )
-        if desk is None or Desk(value) is not desk:
+        given = Desk(value)
+        if scope_of(cls) is not Scope.DESK_ROW:  # desk-partitioned SHARED mapper, desk token
+            if new and given in (Desk.OPERATOR, Desk.ASSISTANT):
+                return  # a desk may publish a row for either desk
+            changed, _old, _new = self._change(obj, "desk")
+            if not new and not changed:
+                return  # an existing row stays in the partition it was loaded from
             raise DeskWallViolation(
-                f"{self._who()} may not write a {cls.__name__} row for desk {Desk(value).value!r}"
+                f"{self._who()} may not move a {cls.__name__} row to desk {given.value!r}"
             )
+        if desk is None or given is not desk:
+            raise DeskWallViolation(
+                f"{self._who()} may not write a {cls.__name__} row for desk {given.value!r}"
+            )
+
+    # --- grants and immutable columns on flushed rows
+
+    def _check_grant_insert(self, obj: Any) -> None:
+        cls = type(obj)
+        grant = self._grant(cls)
+        if grant is None:
+            return
+        state = inspect(obj)
+        named = _column_names(
+            state.mapper, (key for key in state.dict if key in state.mapper.attrs)
+        )
+        if not grant.may_insert(named):
+            raise DeskWallViolation(
+                f"{self._who()} may not INSERT {cls.__name__} rows naming {sorted(named)} (grant)"
+            )
+
+    def _check_grant_update(self, obj: Any) -> None:
+        cls = type(obj)
+        grant = self._grant(cls)
+        if grant is None:
+            return
+        state = inspect(obj)
+        changed = [
+            attr.key
+            for attr in state.mapper.column_attrs
+            if state.attrs[attr.key].history.has_changes()
+        ]
+        columns = _column_names(state.mapper, changed)
+        if not grant.may_update(columns):
+            raise DeskWallViolation(
+                f"{self._who()} may not UPDATE {cls.__name__} columns {sorted(columns)} (grant)"
+            )
+
+    def _check_immutable(self, obj: Any) -> None:
+        """``__immutable__`` names database columns; the mapped attribute may differ
+        (``document.metadata`` is the attribute ``meta``), so the check goes through the
+        mapper's column properties."""
+        frozen = set(getattr(type(obj), "__immutable__", ()))
+        if not frozen:
+            return
+        state = inspect(obj)
+        for prop in state.mapper.column_attrs:
+            names = {getattr(column, "name", None) for column in prop.columns}
+            if not names & frozen:
+                continue
+            changed, old, new = self._change(obj, prop.key)
+            if changed and new != old:
+                raise SingleTransitionViolation(
+                    f"{type(obj).__name__}.{prop.key} is immutable after INSERT"
+                )
 
     @staticmethod
     def _change(obj: Any, column: str) -> tuple[bool, Any, Any]:

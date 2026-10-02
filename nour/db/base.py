@@ -9,7 +9,18 @@ Every mapper declares four class variables the walls read:
 * ``__append_only__``: UPDATE/DELETE refused by a DB trigger on both dialects and by the ORM
   listener (SPEC §12 audit log).
 * ``__single_transition__``: columns that may be set once while NULL (``approval.decided_at``).
+  A table with such columns is "insert + transition": its rows are never deleted or replaced
+  either (a DB trigger on both dialects and the ORM listener refuse DELETE, SQLite's
+  ``INSERT OR REPLACE`` and an upsert that collides on the key).
 * ``__forward_only__``: status columns with an ordered state list (``transaction.status``).
+* ``__immutable__``: columns frozen at INSERT — an UPDATE that changes one is refused by a DB
+  trigger on both dialects and by the ORM listener (``release.nonce``, ``approval.action_json``,
+  ``inbox_event.signature_valid``; DESIGN §5 "insert + ONE burn / ONE transition").
+* ``__desk_partitioned__``: a SHARED table whose rows a desk token may read, update or delete
+  only in its own ``desk`` partition, while the governance processes (ingress, scheduler, CLI)
+  see and write every partition; any desk may *insert* a row for either desk (that is how a
+  desk hands an event to the other one). ``inbox_event`` carries it (SPEC §5: the Operator
+  never reads the owner's mailboxes; DESIGN §4a).
 
 They are copied into ``Table.info["nour"]`` when the class is created (``Base.__init_subclass__``)
 so ``nour.db.engine`` can generate DDL from a bare ``MetaData`` — the same path the alembic
@@ -51,7 +62,7 @@ from nour.core.types import CoatId, Desk, Ulid
 
 TABLE_INFO_KEY = "nour"
 """``Table.info[TABLE_INFO_KEY]`` holds ``{"scope", "append_only", "single_transition",
-"forward_only"}`` for every mapped table (see :class:`Base`)."""
+"forward_only", "immutable", "desk_partitioned"}`` for every mapped table (see :class:`Base`)."""
 
 MAPPER_INFO_KEY = "nour_mapper"
 """``Table.info[MAPPER_INFO_KEY]`` is the mapped class, so ``DeskWallGuard`` can find the entity
@@ -87,6 +98,8 @@ class Base(DeclarativeBase):
     __append_only__: ClassVar[bool] = False  # DB trigger + ORM listener
     __single_transition__: ClassVar[tuple[str, ...]] = ()  # columns settable once while NULL
     __forward_only__: ClassVar[dict[str, list[str]]] = {}  # status columns, ordered state list
+    __immutable__: ClassVar[tuple[str, ...]] = ()  # columns frozen at INSERT (trigger + listener)
+    __desk_partitioned__: ClassVar[bool] = False  # SHARED rows partitioned per desk for desk tokens
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """§5: check the wall markers against the real columns once the class is mapped (the
@@ -111,13 +124,21 @@ class Base(DeclarativeBase):
 
 def _validate_markers(cls: type[Base], table: Table) -> dict[str, Any]:
     """The ``Table.info[TABLE_INFO_KEY]`` entry of ``cls``, or ``TypeError`` when a marker
-    contradicts the columns: a ``DESK_ROW`` mapper without ``desk`` (the wall could not
-    partition it), a single-transition or forward-only marker naming an unknown column, a
-    forward-only order with fewer than two distinct states."""
+    contradicts the columns: a ``DESK_ROW`` or desk-partitioned mapper without ``desk`` (the
+    wall could not partition it), a desk-partitioned mapper that is not SHARED (every other
+    scope already partitions or confines its rows), a single-transition, forward-only or
+    immutable marker naming an unknown column, a column under two of those markers at once
+    (they would contradict each other), a forward-only order with fewer than two distinct
+    states."""
     scope = Scope(cls.__scope__)
     columns = set(table.columns.keys())
     if scope is Scope.DESK_ROW and "desk" not in columns:
         raise TypeError(f"{cls.__name__}: a DESK_ROW mapper needs a `desk` column (DeskMixin)")
+    partitioned = bool(cls.__desk_partitioned__)
+    if partitioned and scope is not Scope.SHARED:
+        raise TypeError(f"{cls.__name__}: __desk_partitioned__ applies to a SHARED mapper only")
+    if partitioned and "desk" not in columns:
+        raise TypeError(f"{cls.__name__}: a desk-partitioned mapper needs a `desk` column")
     for name in cls.__single_transition__:
         if name not in columns:
             raise TypeError(f"{cls.__name__}: __single_transition__ names unknown column {name!r}")
@@ -128,11 +149,22 @@ def _validate_markers(cls: type[Base], table: Table) -> dict[str, Any]:
             raise TypeError(
                 f"{cls.__name__}: __forward_only__[{name!r}] needs >= 2 distinct states"
             )
+    changing = set(cls.__single_transition__) | set(cls.__forward_only__)
+    for name in cls.__immutable__:
+        if name not in columns:
+            raise TypeError(f"{cls.__name__}: __immutable__ names unknown column {name!r}")
+        if name in changing:
+            raise TypeError(
+                f"{cls.__name__}: {name!r} cannot be both immutable and single-transition / "
+                "forward-only"
+            )
     return {
         "scope": scope,
         "append_only": bool(cls.__append_only__),
         "single_transition": tuple(cls.__single_transition__),
         "forward_only": {k: list(v) for k, v in cls.__forward_only__.items()},
+        "immutable": tuple(cls.__immutable__),
+        "desk_partitioned": partitioned,
     }
 
 

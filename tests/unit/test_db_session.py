@@ -47,7 +47,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import DBAPIError, SAWarning, StatementError
+from sqlalchemy.exc import DBAPIError, IntegrityError, SAWarning, StatementError
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -159,6 +159,14 @@ class Ticket(WallBase, RecordMixin):
     decided_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
+class SharedNote(WallBase, RecordMixin):
+    """Stands in for a mutable SHARED table such as `coat` (no transition markers)."""
+
+    __tablename__ = "wall_shared_note"
+    __scope__ = Scope.SHARED
+    note: Mapped[str] = mapped_column(String(64))
+
+
 class SecretRow(WallBase, RecordMixin):
     """Stands in for `beneficiary.bank_details_ct` (EncryptedBytes)."""
 
@@ -173,7 +181,7 @@ class GovernanceRow(WallBase, RecordMixin):
     __tablename__ = "wall_governance"
     __scope__ = Scope.GOVERNANCE_ONLY
     whatsapp_number: Mapped[str] = mapped_column(String(32))
-    passphrase_hash: Mapped[str] = mapped_column(String(128), default="")
+    passphrase_hash: Mapped[str] = mapped_column(String(128), default="", deferred=True)
 
 
 class OperatorOnlyRow(WallBase, RecordMixin):
@@ -317,6 +325,8 @@ def test_base_records_flags_in_table_info() -> None:
         "append_only": True,
         "single_transition": (),
         "forward_only": {},
+        "immutable": (),
+        "desk_partitioned": False,
     }
     ticket = Ticket.__table__.info[TABLE_INFO_KEY]  # type: ignore[attr-defined]
     assert ticket["single_transition"] == ("decided_at",)
@@ -327,6 +337,7 @@ def test_base_records_flags_in_table_info() -> None:
     )
     assert Base.__scope__ is Scope.SHARED and Base.__append_only__ is False
     assert Base.__single_transition__ == () and Base.__forward_only__ == {}
+    assert Base.__immutable__ == () and Base.__desk_partitioned__ is False
 
 
 def _refused_class(excinfo: pytest.ExceptionInfo[TypeError]) -> type[Any]:
@@ -1082,7 +1093,10 @@ def test_pg_roles_ddl_covers_every_scope() -> None:
     ddl = pg_roles_ddl(WallBase.metadata)
     joined = "\n".join(ddl)
     for role in ALL_ROLES:
-        assert f'CREATE ROLE "{role}" LOGIN' in joined
+        # THREAT_REVIEW 6.1: NOLOGIN until the operator sets a password out of band; never a
+        # superuser, never BYPASSRLS (a superuser bypasses RLS even with FORCE).
+        assert f'CREATE ROLE "{role}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE' in joined
+        assert "NOBYPASSRLS" in joined and f'CREATE ROLE "{role}" LOGIN' not in joined
     assert f'ALTER ROLE "{AUDITOR_ROLE}" SET default_transaction_read_only = on' in joined
     # append-only: revoke update/delete, grant select+insert only
     assert 'REVOKE UPDATE, DELETE ON "wall_shared_log" FROM' in joined
@@ -1091,9 +1105,12 @@ def test_pg_roles_ddl_covers_every_scope() -> None:
         in joined
     )
     assert 'GRANT SELECT ON "wall_shared_log" TO "nour_auditor"' in joined
-    # desk rows: RLS keyed on nour.desk
+    # desk rows: ENABLE + FORCE RLS, keyed on current_user (the connecting role), never on a GUC
     assert 'ALTER TABLE "wall_desk_row" ENABLE ROW LEVEL SECURITY' in joined
-    assert "current_setting('nour.desk', true)" in joined
+    assert 'ALTER TABLE "wall_desk_row" FORCE ROW LEVEL SECURITY' in joined
+    assert "current_setting(" not in joined and "nour.desk" not in joined
+    assert "CASE current_user WHEN 'nour_desk_operator' THEN 'operator'" in joined
+    assert "WHEN 'nour_scheduler' THEN 'governance' END" in joined
     assert 'CREATE POLICY "wall_desk_row_desk_isolation" ON "wall_desk_row" FOR ALL TO' in joined
     # *_ONLY scopes go to one role
     assert (
@@ -1129,7 +1146,7 @@ def test_trigger_ddl_lists_every_flagged_table() -> None:
         and "wall_ticket_status_forward_only" in names
     )
     assert "wall_desk_row" not in names
-    assert trigger_ddl("sqlite", Base.metadata) == []
+    assert trigger_ddl("sqlite", MetaData()) == []  # no flagged tables, no DDL
     with pytest.raises(ValueError):
         trigger_ddl("mysql", WallBase.metadata)
 
@@ -1140,9 +1157,10 @@ class SchemaBase(Base):
 
 
 class AuditorReportInSchema(SchemaBase, RecordMixin):
-    """Stands in for `auditor_report`, which lives in the Postgres schema `auditor` (DESIGN §3.8)."""
+    """Stands in for `auditor_report`, which lives in the Postgres schema `auditor` (DESIGN §3.8);
+    named apart from the real wave-1 table, which shares the test database file."""
 
-    __tablename__ = "auditor_report"
+    __tablename__ = "wall_schema_report"
     __table_args__ = {"schema": "auditor"}
     __scope__ = Scope.AUDITOR_WRITE
     __append_only__ = True
@@ -1157,27 +1175,27 @@ def test_schema_qualified_tables_get_valid_ddl_on_both_dialects() -> None:
     pg = trigger_ddl("postgresql", SchemaBase.metadata)
     joined = "\n".join(pg)
     assert (
-        'CREATE TRIGGER "auditor_report_no_update_delete" BEFORE UPDATE OR DELETE ON '
-        '"auditor"."auditor_report"' in joined
+        'CREATE TRIGGER "wall_schema_report_no_update_delete" BEFORE UPDATE OR DELETE ON '
+        '"auditor"."wall_schema_report"' in joined
     )
-    assert 'DROP TRIGGER IF EXISTS "auditor_report_no_update_delete" ON "auditor"."auditor_report"'
-    assert 'ON "auditor"."auditor_report" FOR EACH ROW' in joined
-    assert '"auditor.auditor_report"' not in joined  # never one identifier
+    assert 'DROP TRIGGER IF EXISTS "wall_schema_report_no_update_delete" ON "auditor"."wall_schema_report"'
+    assert 'ON "auditor"."wall_schema_report" FOR EACH ROW' in joined
+    assert '"auditor.wall_schema_report"' not in joined  # never one identifier
     assert (
-        'CREATE TRIGGER "auditor_report_sent_at_single_transition" BEFORE UPDATE OF "sent_at" ON '
-        '"auditor"."auditor_report"' in joined
+        'CREATE TRIGGER "wall_schema_report_sent_at_single_transition" BEFORE UPDATE OF "sent_at" ON '
+        '"auditor"."wall_schema_report"' in joined
     )
     assert (
-        'CREATE TRIGGER "auditor_report_state_forward_only" BEFORE UPDATE OF "state" ON '
-        '"auditor"."auditor_report"' in joined
+        'CREATE TRIGGER "wall_schema_report_state_forward_only" BEFORE UPDATE OF "state" ON '
+        '"auditor"."wall_schema_report"' in joined
     )
     roles = "\n".join(pg_roles_ddl(SchemaBase.metadata))
     assert 'CREATE SCHEMA IF NOT EXISTS "auditor"' in roles
-    assert 'GRANT SELECT, INSERT ON "auditor"."auditor_report" TO "nour_auditor"' in roles
+    assert 'GRANT SELECT, INSERT ON "auditor"."wall_schema_report" TO "nour_auditor"' in roles
     assert pg_schema_ddl(SchemaBase.metadata) == ['CREATE SCHEMA IF NOT EXISTS "auditor"']
     assert pg_schema_ddl(WallBase.metadata) == []
     sqlite = "\n".join(trigger_ddl("sqlite", SchemaBase.metadata))
-    assert 'BEFORE UPDATE ON "auditor_report"' in sqlite and "auditor." not in sqlite
+    assert 'BEFORE UPDATE ON "wall_schema_report"' in sqlite and "auditor." not in sqlite
 
 
 def test_create_schema_translates_schemas_away_on_sqlite(
@@ -1194,15 +1212,17 @@ def test_create_schema_translates_schemas_away_on_sqlite(
         tables = {
             n for (n,) in c.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")
         }
-    assert "auditor_report" in tables
-    assert {"auditor_report_no_update", "auditor_report_no_replace"} <= _sqlite_triggers(engine)
+    assert "wall_schema_report" in tables
+    assert {"wall_schema_report_no_update", "wall_schema_report_no_replace"} <= _sqlite_triggers(
+        engine
+    )
     auditor = session_factory(tokens["auditor"])
     with auditor.append_report() as s:
         s.add(AuditorReportInSchema(id=idgen.new(), summary="day one"))
     with auditor.session() as s:
         assert [r.summary for r in s.scalars(select(AuditorReportInSchema))] == ["day one"]
     with pytest.raises(DBAPIError, match="append-only"), engine.begin() as c:
-        c.exec_driver_sql("UPDATE auditor_report SET summary = 'x'")
+        c.exec_driver_sql("UPDATE wall_schema_report SET summary = 'x'")
 
 
 # --------------------------------------------------------------------------- make_engine on other dialects (strings only)
@@ -1668,14 +1688,27 @@ def test_desk_row_upserts_are_refused_and_shared_upserts_keep_excluded(
         )
         assert again.rowcount == 0
     assert _partition(sf, kind) == sorted([f"{kind}-0", f"{kind}-1", "nothing"])
+    shared_id = idgen.new()
+    with sf[kind].write() as s:
+        s.add(SharedNote(id=shared_id, note="first"))
+    shared = sqlite_insert(SharedNote).values(id=shared_id, note="upserted")
+    shared = shared.on_conflict_do_update(
+        index_elements=["id"], set_={"note": shared.excluded.note}
+    )
+    with sf[kind].write() as s:
+        s.execute(shared)
+    with sf[kind].session() as s:
+        assert s.get(SharedNote, shared_id).note == "upserted"  # type: ignore[union-attr]
+    # a single-transition table keeps its rows: an upsert that collides is refused by the
+    # BEFORE INSERT trigger (it would re-arm the row through SQLite's conflict resolution)
     ticket = sqlite_insert(Ticket).values(id=seeded["ticket"][0], status="released")
     ticket = ticket.on_conflict_do_update(
         index_elements=["id"], set_={"status": ticket.excluded.status}
     )
-    with sf[kind].write() as s:
+    with pytest.raises(IntegrityError, match="never deleted or replaced"), sf[kind].write() as s:
         s.execute(ticket)
     with sf[kind].session() as s:
-        assert s.get(Ticket, seeded["ticket"][0]).status == "released"  # type: ignore[union-attr]
+        assert s.get(Ticket, seeded["ticket"][0]).status == "prepared"  # type: ignore[union-attr]
 
 
 def test_orm_shapes_the_wall_partitions_still_work(
