@@ -14,15 +14,77 @@ outreach_window:
   ramadan:
     adjust_hours: true
     outreach_window: { start: "10:00", end: "16:00" }
-    dates: []                   # owner confirms each year (lunar)
-  blocked_dates:                # Eid and national holidays; lunar dates are approximate
-    - { name: New Year's Day, date: 2027-01-01 }
-    - { name: Eid al-Fitr (approx.), start: 2027-03-09, end: 2027-03-12, confirm: true }
-    - { name: Arafat Day and Eid al-Adha (approx.), start: 2027-05-15, end: 2027-05-18, confirm: true }
-    - { name: Islamic New Year (approx.), date: 2027-06-06, confirm: true }
-    - { name: Prophet's Birthday (approx.), date: 2027-08-14, confirm: true }
-    - { name: Commemoration Day and National Day, start: 2026-12-02, end: 2026-12-03 }
-    - { name: Commemoration Day and National Day, start: 2027-12-02, end: 2027-12-03 }
+    # Lunar; owner confirms each year. 1 Ramadan 1448 = 2027-02-08 on the Umm al-Qura
+    # calendar and per the UAE Astronomy Centre (crescent not visible from the UAE on
+    # 2027-02-06, so Sha'ban completes 30 days). Ramadan ends 2027-03-08 if 29 days,
+    # 2027-03-09 if 30 days; the range below covers the longer case. Working hours drop by
+    # two hours per day (u.ae Ramadan page, MOHRE). Last verified 2026-10-02.
+    dates:
+      - name: Ramadan 1448 (expected)
+        start: 2027-02-08
+        end: 2027-03-09
+        confirm: true
+        source: https://www.khaleejtimes.com/uae/ramadan-eid-al-fitr-eid-al-adha-2027-likely-dates
+        basis: Umm al-Qura 1 Ramadan 1448 = 2027-02-08; UAE Astronomy Centre expects 2027-02-08
+  # Eid and national holidays. Fixed Gregorian dates and the Hijri rules come from Cabinet
+  # Resolution No. 27 of 2024 as published on u.ae (page updated 2026-07-02); the UAE
+  # Cabinet had not announced Gregorian dates for the 2027 lunar holidays as of 2026-10-02,
+  # so those carry confirm: true with their expected date and astronomical basis. Public
+  # holidays are not transferred when they fall on a weekend. Commemoration Day (30 Nov) is
+  # observed with a flag ceremony but is NOT a public holiday under the 2024 resolution.
+  blocked_dates:
+    - name: Eid Al Etihad (National Day)
+      start: 2026-12-02
+      end: 2026-12-03
+      confirm: false
+      source: https://u.ae/en/information-and-services/public-holidays-and-religious-affairs/public-holidays
+    - name: New Year's Day
+      date: 2027-01-01
+      confirm: false
+      source: https://u.ae/en/information-and-services/public-holidays-and-religious-affairs/public-holidays
+    - name: Eid Al Fitr (expected; 30 Ramadan to 3 Shawwal 1448)
+      start: 2027-03-09
+      end: 2027-03-12
+      confirm: true
+      source: https://www.khaleejtimes.com/uae/uae-holidays-2027-possible-6-day-break-multiple-long-weekends-expected
+      basis: Umm al-Qura 1 Shawwal 1448 = 2027-03-09; holiday is 1-3 Shawwal (03-09 to 03-11) if Ramadan has 29 days, or 30 Ramadan plus 1-3 Shawwal (03-09 to 03-12) if 30 days. Range covers both.
+    - name: Arafah Day and Eid Al Adha (expected; 9-12 Dhu al-Hijjah 1448)
+      start: 2027-05-15
+      end: 2027-05-18
+      confirm: true
+      source: https://www.khaleejtimes.com/uae/uae-holidays-2027-possible-6-day-break-multiple-long-weekends-expected
+      basis: Umm al-Qura 9 Dhu al-Hijjah 1448 = 2027-05-15 (Arafah), Eid 05-16 to 05-18. UAE Astronomy Centre says Eid may fall on 05-16 or 05-17; if the month starts a day late the block shifts to 05-16 to 05-19.
+    - name: Hijri New Year (expected; 1 Muharram 1449)
+      date: 2027-06-06
+      confirm: true
+      source: https://www.khaleejtimes.com/uae/uae-holidays-2027-possible-6-day-break-multiple-long-weekends-expected
+      basis: Umm al-Qura 1 Muharram 1449 = 2027-06-06 (Sunday); may slip to 06-07 on sighting.
+    - name: Prophet Mohammed's Birthday (expected; 12 Rabi' Al Awwal 1449)
+      date: 2027-08-14
+      confirm: true
+      source: https://www.khaleejtimes.com/uae/uae-holidays-2027-possible-6-day-break-multiple-long-weekends-expected
+      basis: Umm al-Qura 12 Rabi' Al Awwal 1449 = 2027-08-14 (Saturday, a weekend day; not transferred); may slip to 08-15 on sighting.
+    - name: Eid Al Etihad (National Day)
+      start: 2027-12-02
+      end: 2027-12-03
+      confirm: false
+      source: https://u.ae/en/information-and-services/public-holidays-and-religious-affairs/public-holidays
+
+# Offline prayer-time computation for Dubai (feeds outreach_window.prayer_times). The
+# "Dubai" method (Batoul Apps parameters, also adhan.js METHODS.md and aladhan.com method 16)
+# reproduces the Awqaf timetable republished by Khaleej Times for 2026-10-02 exactly on Fajr,
+# Sunrise, Dhuhr, Maghrib and Isha (Asr within 2 min); Umm al-Qura (18.5 deg, Isha = Maghrib
+# + 90 min) was 3 min off and 13 min late on Isha, so it is not used. Awqaf has not published
+# its formula; the owner may still override with a table (source: table).
+prayer_times:
+  method: dubai                 # adhanpy CalculationMethod.DUBAI
+  fajr_angle: 18.2
+  isha_rule: angle 18.2         # angle-based, not a fixed interval; no Ramadan +30 min offset
+  latitude: 25.2048
+  longitude: 55.2708
+  library: adhanpy>=1.0.5       # pure Python, MIT, no dependencies; see docs/adapters/calendar.md
+  madhab: shafi                 # Asr at shadow length 1x, as the UAE timetable uses
+  method_adjustments_minutes: { fajr: 0, sunrise: -3, dhuhr: 3, asr: 3, maghrib: 3, isha: 0 }
 
 quiet_hours:
   start: "22:00"
