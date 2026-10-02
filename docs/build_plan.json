@@ -1,0 +1,604 @@
+{
+  "design_doc_path": "/home/user/liveplatform/docs/DESIGN.md",
+  "waves": [
+    {
+      "wave": 0,
+      "modules": [
+        {
+          "name": "core",
+          "owned_paths": [
+            "nour/__init__.py",
+            "nour/core/__init__.py",
+            "nour/core/types.py",
+            "nour/core/errors.py",
+            "nour/core/tokens.py",
+            "nour/core/clock.py",
+            "nour/core/hashing.py",
+            "nour/core/leakguard.py",
+            "nour/core/tier2.py",
+            "nour/core/ports.py",
+            "nour/core/contracts.py",
+            "nour/config/__init__.py",
+            "nour/config/schema.py",
+            "nour/config/loader.py",
+            "nour/config/settings.py",
+            "nour/db/__init__.py",
+            "nour/db/base.py",
+            "nour/db/engine.py",
+            "nour/db/session.py",
+            "config/constitution.md",
+            "config/persona.md",
+            "config/permissions.yaml",
+            "config/spend_tiers.yaml",
+            "config/calendar.yaml",
+            "config/channels.yaml",
+            "config/deputy.yaml",
+            "config/models.yaml",
+            "config/capabilities.yaml",
+            "config/coats/buzz-avenue.yaml",
+            "config/coats/buzz-avenue.tone.md",
+            "config/coats/buzz-avenue.knowledge.md",
+            "prompts/face_lock.md",
+            ".env.example",
+            ".github/workflows/ci.yml",
+            "tests/__init__.py",
+            "tests/conftest.py",
+            "tests/unit/__init__.py",
+            "tests/unit/test_core_types.py",
+            "tests/unit/test_clock.py",
+            "tests/unit/test_hashing.py",
+            "tests/unit/test_leakguard.py",
+            "tests/unit/test_tier2_value.py",
+            "tests/unit/test_tokens.py",
+            "tests/unit/test_ports_shapes.py",
+            "tests/unit/test_contracts.py",
+            "tests/unit/test_config_loader.py",
+            "tests/unit/test_db_session.py",
+            "tests/unit/test_wave_imports.py",
+            "tests/unit/test_walls.py"
+          ],
+          "responsibility": "Domain types, wave-crossing contracts (events, stamps, proposals, decisions, release tokens, tool specs, handoffs, audit entry, upward protocols), port protocols + PortCall/CallLog/PortSet registry, config loading against the real config/ and prompts/ trees, settings, DB base/engine/session with DeskWallGuard and dual-dialect append-only DDL, clock/ids, hashing, LeakGuard + SafeStr, Tier2Value/SecretRef/RenderWitness, shared pytest fixtures and the wave-import/AST wall tests.",
+          "spec_sections": [
+            "§2",
+            "§4",
+            "§5",
+            "§6",
+            "§10",
+            "§11",
+            "§12",
+            "§15",
+            "§18"
+          ],
+          "depends_on": [],
+          "est_lines": 2750
+        }
+      ]
+    },
+    {
+      "wave": 1,
+      "modules": [
+        {
+          "name": "db",
+          "owned_paths": [
+            "nour/db/models.py",
+            "alembic.ini",
+            "nour/db/migrations/__init__.py",
+            "nour/db/migrations/env.py",
+            "nour/db/migrations/script.py.mako",
+            "nour/db/migrations/versions/__init__.py",
+            "nour/db/migrations/versions/0001_initial.py",
+            "tests/unit/test_models_columns.py",
+            "tests/unit/test_db_wall.py",
+            "tests/unit/test_append_only.py",
+            "tests/unit/test_single_transition.py",
+            "tests/unit/test_migrations_match_metadata.py",
+            "tests/unit/test_pg_ddl.py"
+          ],
+          "responsibility": "ORM models for the 16 §15 entities plus 13 infrastructure tables with scope markers, CHECK constraints (Tier 2 metadata-only, owner_profile assistant-only, experiments operator-only), append-only/single-transition/forward-only markers; alembic env and 0001_initial carrying trigger, role and RLS DDL; wall and append-only tests on the real models; migrations-vs-metadata drift test.",
+          "spec_sections": [
+            "§12",
+            "§13",
+            "§15"
+          ],
+          "depends_on": [
+            "core"
+          ],
+          "est_lines": 1100
+        },
+        {
+          "name": "fakes",
+          "owned_paths": [
+            "nour/fakes/__init__.py",
+            "nour/fakes/whatsapp.py",
+            "nour/fakes/mailbox.py",
+            "nour/fakes/phone.py",
+            "nour/fakes/card.py",
+            "nour/fakes/stt.py",
+            "nour/fakes/model.py",
+            "nour/fakes/policies.py",
+            "nour/fakes/secrets.py",
+            "nour/fakes/objects.py",
+            "nour/fakes/bank.py",
+            "nour/fakes/second.py",
+            "nour/fakes/vector.py",
+            "nour/fakes/reserved.py",
+            "tests/unit/test_fakes.py",
+            "tests/unit/test_policies.py"
+          ],
+          "responsibility": "One in-memory fake per port recording into the shared CallLog with PortCall and dry-run honouring, inbound queues and fail_next; FakeCardIssuer with the cap in the issuer; ScriptedModel; adversarial model policies (Sane, ObeyInjections, LeakIban, ClaimTierA, CrossDesk, CoatlessOutbound, RepeatAction, SpendBurst, DryRun, Replay); default_fakes one-call wiring.",
+          "spec_sections": [
+            "§16",
+            "§18"
+          ],
+          "depends_on": [
+            "core"
+          ],
+          "est_lines": 1150
+        },
+        {
+          "name": "language",
+          "owned_paths": [
+            "nour/language/__init__.py",
+            "nour/language/prompt.py",
+            "nour/language/injection.py",
+            "nour/language/patterns.yaml",
+            "nour/language/speech.py",
+            "nour/language/critic.py",
+            "prompts/nour.system.md",
+            "prompts/auditor.system.md",
+            "prompts/critic.system.md",
+            "tests/unit/test_prompt.py",
+            "tests/unit/test_injection.py",
+            "tests/unit/test_speech.py",
+            "tests/unit/test_critic.py"
+          ],
+          "responsibility": "PromptAssembler (sandboxed strict jinja2, SafeStr-only PromptContext, observed text fenced after LeakGuard.redact), InjectionScanner with yaml patterns incl. auth_claim and Arabic variants, Arabizi normalisation + ArabicSTT with bake-off, the self-critic, and the three prompt files.",
+          "spec_sections": [
+            "§2",
+            "§8",
+            "§9",
+            "§12",
+            "§13",
+            "§18"
+          ],
+          "depends_on": [
+            "core"
+          ],
+          "est_lines": 870
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "modules": [
+        {
+          "name": "audit",
+          "owned_paths": [
+            "nour/audit/__init__.py",
+            "nour/audit/log.py",
+            "nour/audit/reader.py",
+            "nour/audit/coverage.py",
+            "nour/audit/replay.py",
+            "nour/audit/auditor/__init__.py",
+            "nour/audit/auditor/checks.py",
+            "nour/audit/auditor/runner.py",
+            "nour/audit/auditor/report.py",
+            "tests/unit/test_audit_log.py",
+            "tests/unit/test_audit_reader.py",
+            "tests/unit/test_coverage.py",
+            "tests/unit/test_replay.py",
+            "tests/unit/test_auditor_checks.py",
+            "tests/unit/test_auditor_runner.py"
+          ],
+          "responsibility": "AuditLog with spans (opened row committed before the side effect and minting the PortCall, closed row after), hash chain behind a locked chain head, LeakGuard-scrubbed hashing; AuditReader incl. verify_chain and explain; bidirectional ActionCoverage; Replayer over model_trace; the separate-process auditor (deterministic checks, AUDITOR-role model summary, auditor_report, owner reporting).",
+          "spec_sections": [
+            "§2",
+            "§12",
+            "§14",
+            "§16"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes",
+            "language"
+          ],
+          "est_lines": 1180
+        },
+        {
+          "name": "auth",
+          "owned_paths": [
+            "nour/auth/__init__.py",
+            "nour/auth/passphrase.py",
+            "nour/auth/authenticator.py",
+            "nour/auth/second_channel.py",
+            "nour/auth/readback.py",
+            "tests/unit/test_passphrase.py",
+            "tests/unit/test_authenticator.py",
+            "tests/unit/test_second_channel.py",
+            "tests/unit/test_readback.py"
+          ],
+          "responsibility": "PassphraseVerifier (argon2id + LeakGuard fingerprint), IngressRedactor (extract/verify/redact at ingress, one passphrase_attempt row per outcome, first-failure sink), Authenticator as the only Event producer with HMAC-signed AuthStamp and found_instruction rows, ref-bound SecondChannelConfirmations, ReadBackLedger for voice commands.",
+          "spec_sections": [
+            "§2",
+            "§4",
+            "§6",
+            "§9",
+            "§12",
+            "§13"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes",
+            "language"
+          ],
+          "est_lines": 980
+        },
+        {
+          "name": "vault",
+          "owned_paths": [
+            "nour/vault/__init__.py",
+            "nour/vault/crypto.py",
+            "nour/vault/store.py",
+            "nour/vault/placeholders.py",
+            "nour/vault/renderer.py",
+            "nour/vault/beneficiaries.py",
+            "tests/unit/test_crypto.py",
+            "tests/unit/test_vault_store.py",
+            "tests/unit/test_placeholders.py",
+            "tests/unit/test_renderer.py",
+            "tests/unit/test_beneficiaries.py"
+          ],
+          "responsibility": "FieldCipher producing Ciphertext, VaultStore (AssistantToken-typed, metadata-only Tier 2 index, fingerprint registration, reveal only under a RenderWitness), TierRegister, {{bank.<coat>.iban}} placeholder grammar, DocumentRenderer as the sole RenderWitness constructor with the receiving-bank exception, BeneficiaryService.propose_change that never mutates the registry.",
+          "spec_sections": [
+            "§6",
+            "§10",
+            "§11",
+            "§13",
+            "§15"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes"
+          ],
+          "est_lines": 1020
+        },
+        {
+          "name": "records",
+          "owned_paths": [
+            "nour/records/__init__.py",
+            "nour/records/crm.py",
+            "nour/records/ledger.py",
+            "nour/records/card.py",
+            "nour/records/memory.py",
+            "tests/unit/test_crm.py",
+            "tests/unit/test_ledger.py",
+            "tests/unit/test_card_service.py",
+            "tests/unit/test_memory.py"
+          ],
+          "responsibility": "CrmStore partitioned by (coat, desk) with global DNC and counterpart lookup, Ledger whose only money-out path requires a CardAuthorization, CardService over CardIssuerPort keyed by BudgetHolder, MemoryStore with the namespace from the token and proposal-only semantic/owner-profile writes.",
+          "spec_sections": [
+            "§8",
+            "§9",
+            "§10",
+            "§15"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes"
+          ],
+          "est_lines": 1020
+        },
+        {
+          "name": "events",
+          "owned_paths": [
+            "nour/events/__init__.py",
+            "nour/events/bus.py",
+            "nour/events/router.py",
+            "nour/events/scheduler.py",
+            "nour/events/adapters.py",
+            "tests/unit/test_event_bus.py",
+            "tests/unit/test_router.py",
+            "tests/unit/test_scheduler.py",
+            "tests/unit/test_adapters.py"
+          ],
+          "responsibility": "Durable EventBus over inbox_event with provider-id dedup and leases, Router implementing the §5 routing rules (owner thread/mailbox/staff/second channel to Assistant, Buzz line strangers and phone notifications to Operator), exactly-once Scheduler via timer_slot, InboundAdapters pulling every port through a RedactorLike.",
+          "spec_sections": [
+            "§4",
+            "§5",
+            "§12",
+            "§13"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes"
+          ],
+          "est_lines": 790
+        }
+      ]
+    },
+    {
+      "wave": 3,
+      "modules": [
+        {
+          "name": "policy",
+          "owned_paths": [
+            "nour/policy/__init__.py",
+            "nour/policy/registry.py",
+            "nour/policy/tiering.py",
+            "nour/policy/approvals.py",
+            "nour/policy/handoff.py",
+            "tests/unit/test_registry.py",
+            "tests/unit/test_tiering.py",
+            "tests/unit/test_approvals.py",
+            "tests/unit/test_handoff.py"
+          ],
+          "responsibility": "ToolRegistry/ToolView (per-desk schemas, config validation), TierResolver with 13 ordered raise-only rules deriving every tier-relevant attribute server-side (hypothesis monotonicity test), CategoryState, ApprovalsQueue + decision journal deriving proof from the signed decision Event and confirmed challenges and minting ReleasedAction through an injected mint, HandoffQueue one-way gate with Tier0Ref resolution.",
+          "spec_sections": [
+            "§4",
+            "§5",
+            "§6",
+            "§7",
+            "§8",
+            "§10",
+            "§12"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes",
+            "audit",
+            "auth",
+            "vault",
+            "records",
+            "events"
+          ],
+          "est_lines": 1160
+        },
+        {
+          "name": "governance",
+          "owned_paths": [
+            "nour/governance/__init__.py",
+            "nour/governance/freeze.py",
+            "nour/governance/watchdog.py",
+            "nour/governance/incidents.py",
+            "nour/governance/owner_channel.py",
+            "tests/unit/test_kill_switch.py",
+            "tests/unit/test_watchdog.py",
+            "tests/unit/test_incidents.py",
+            "tests/unit/test_owner_channel.py"
+          ],
+          "responsibility": "FreezeGuard and KillSwitch (ALL_OUTBOUND with owner-thread exemptions, card freeze, scoped secret revocation, release needing passphrase + second channel, fixed kill phrases), Watchdog (loop/spend/failed-sends/first auth failure), IncidentService per the §12 playbook, OwnerChannel with quiet-hours parking, initiative budget and flush_due.",
+          "spec_sections": [
+            "§2",
+            "§12",
+            "§13",
+            "§14"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes",
+            "audit",
+            "records"
+          ],
+          "est_lines": 1080
+        }
+      ]
+    },
+    {
+      "wave": 4,
+      "modules": [
+        {
+          "name": "tools",
+          "owned_paths": [
+            "nour/tools/__init__.py",
+            "nour/tools/common.py",
+            "nour/tools/assistant.py",
+            "nour/tools/operator.py",
+            "nour/tools/routines.py",
+            "tests/unit/test_tools_common.py",
+            "tests/unit/test_tools_assistant.py",
+            "tests/unit/test_tools_operator.py",
+            "tests/unit/test_routines.py",
+            "tests/unit/test_operator_isolation.py"
+          ],
+          "responsibility": "Phase 0 ToolSpecs and handlers per desk (common, assistant-only vault/payment/handoff/owner-mailbox, operator stubs), register_all by token type, BriefService (morning/evening/weekly) and ReflectService (proposals only), and the Operator isolation test.",
+          "spec_sections": [
+            "§5",
+            "§7",
+            "§8",
+            "§9",
+            "§10",
+            "§11",
+            "§12"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes",
+            "language",
+            "audit",
+            "auth",
+            "vault",
+            "records",
+            "events",
+            "policy",
+            "governance"
+          ],
+          "est_lines": 1140
+        },
+        {
+          "name": "agent",
+          "owned_paths": [
+            "nour/agent/__init__.py",
+            "nour/agent/runtime.py",
+            "nour/agent/router.py",
+            "nour/agent/executor.py",
+            "nour/agent/dispatcher.py",
+            "tests/unit/test_desk_runtime.py",
+            "tests/unit/test_model_router.py",
+            "tests/unit/test_executor.py",
+            "tests/unit/test_dispatcher.py"
+          ],
+          "responsibility": "DeskRuntime.plan (prompt, model call, ActionProposal parsing with model-claimed fields log-only), ModelRouter (fallback vendor, AUTONOMOUS freeze + incident, cost, model_trace), ToolExecutor (ReleaseToken burn in the releases table, freeze check, ExecContext with PortCall), ActionGate.dispatch as the single choke point with an AuditLog span and dispatch_sink on every branch.",
+          "spec_sections": [
+            "§4",
+            "§6",
+            "§12",
+            "§14"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes",
+            "language",
+            "audit",
+            "auth",
+            "records",
+            "policy",
+            "governance"
+          ],
+          "est_lines": 1060
+        }
+      ]
+    },
+    {
+      "wave": 5,
+      "modules": [
+        {
+          "name": "runtime",
+          "owned_paths": [
+            "nour/runtime/__init__.py",
+            "nour/runtime/loop.py",
+            "nour/runtime/bootstrap.py",
+            "nour/ingress/__init__.py",
+            "nour/ingress/app.py",
+            "nour/adapters/__init__.py",
+            "nour/adapters/model_anthropic.py",
+            "nour/adapters/model_openai.py",
+            "tests/unit/test_loop.py",
+            "tests/unit/test_bootstrap.py",
+            "tests/unit/test_ingress.py",
+            "tests/unit/test_model_adapters.py"
+          ],
+          "responsibility": "DeskLoop.step/drain/run_forever and TimerHandlers, process bootstrap (build_desk/build_governance/build_auditor, the only mint() call sites, Operator PortSet without owner mailbox or vault key), Ingress webhook functions with passphrase redaction and the kill fast path before enqueue plus the FastAPI app, two thin vendor model adapters with lazy SDK imports.",
+          "spec_sections": [
+            "§4",
+            "§5",
+            "§6",
+            "§12",
+            "§16"
+          ],
+          "depends_on": [
+            "core",
+            "db",
+            "fakes",
+            "language",
+            "audit",
+            "auth",
+            "vault",
+            "records",
+            "events",
+            "policy",
+            "governance",
+            "tools",
+            "agent"
+          ],
+          "est_lines": 1140
+        }
+      ]
+    },
+    {
+      "wave": 6,
+      "modules": [
+        {
+          "name": "harness",
+          "owned_paths": [
+            "nour/testing/__init__.py",
+            "nour/testing/harness.py",
+            "nour/testing/traffic.py",
+            "nour/cli.py",
+            "tests/unit/test_harness_smoke.py",
+            "tests/unit/test_traffic.py",
+            "tests/unit/test_cli.py"
+          ],
+          "responsibility": "The shared Harness (one SQLite file, token-bound session factories per process, fakes, FakeClock lockstep advance, drive/inspect API incl. assert_no_leaks, coverage, replay, expect), the deterministic 48-hour TrafficGenerator, and the typer CLI including nour dryrun.",
+          "spec_sections": [
+            "§16",
+            "§18"
+          ],
+          "depends_on": [
+            "runtime"
+          ],
+          "est_lines": 1040
+        }
+      ]
+    },
+    {
+      "wave": 7,
+      "modules": [
+        {
+          "name": "acceptance",
+          "owned_paths": [
+            "tests/gate/__init__.py",
+            "tests/gate/conftest.py",
+            "tests/gate/test_passphrase.py",
+            "tests/gate/test_kill_switch.py",
+            "tests/gate/test_planted_instructions.py",
+            "tests/gate/test_card_cap.py",
+            "tests/gate/test_dry_run_48h.py",
+            "tests/gate/test_capability_dod.py",
+            "tests/scenarios/__init__.py",
+            "tests/scenarios/conftest.py",
+            "tests/scenarios/test_planted_email.py",
+            "tests/scenarios/test_bank_change.py",
+            "tests/scenarios/test_voice_money.py",
+            "tests/scenarios/test_lawyer_document.py",
+            "tests/scenarios/test_spend_bands.py",
+            "tests/scenarios/test_quiet_hours.py",
+            "tests/scenarios/test_coatless_outbound.py"
+          ],
+          "responsibility": "The five §16 phase 0 gate tests (10-case passphrase matrix, structural + one wall-clock kill-switch test, five planted instructions with auditor findings, card cap incl. cap-beats-approval and hypothesis invariant, 48-hour dry run with bidirectional coverage/chain/timers/leaks/replay), the §16 capability definition-of-done test, and the seven §18 scenarios asserting tier, log entry and owner message.",
+          "spec_sections": [
+            "§16",
+            "§18"
+          ],
+          "depends_on": [
+            "harness"
+          ],
+          "est_lines": 1350
+        }
+      ]
+    }
+  ],
+  "pyproject_changes": [
+    "Added runtime dependencies: alembic>=1.13, python-ulid>=2.7, tzdata>=2024.1",
+    "Removed runtime dependency python-multipart (webhooks are JSON; media fetched by reference)",
+    "Added dev dependencies: pytest-cov>=5.0, import-linter>=2.0",
+    "Removed dev dependency pytest-asyncio and the asyncio_mode = \"auto\" pytest option (synchronous core)",
+    "Added optional extra vendors = [\"anthropic>=0.40\", \"openai>=1.40\"]; postgres extra unchanged",
+    "Added pytest markers gate, weekly, wallclock, postgres; added [tool.coverage.run] (source nour, omitting adapters and testing)",
+    "Added ruff rule set DTZ with a per-file ignore for nour/core/clock.py",
+    "Added [tool.importlinter] with exclude_type_checking_imports and four contracts: wave layers (cli > testing > runtime > ingress|adapters > agent|tools > policy|governance > audit|auth|vault|records|events > db|fakes|language > config > core), Operator wall (tools.common/tools.operator must not import nour.vault), auditor independence, release-token minting confined to the gate",
+    "Ran `uv sync --all-groups` successfully (alembic 1.20.0, python-ulid 4.0.1, tzdata, pytest-cov 7.1.0, import-linter 2.15 installed; pytest-asyncio and python-multipart removed; uv.lock updated)"
+  ],
+  "notes_for_implementers": [
+    "Read docs/DESIGN.md §3 for the exact signature of anything you call; §5 for every column; docs/MODULES.md for your module's brief. The subsection for each module is named in MODULES.md.",
+    "Same-wave modules never import each other; tests/unit/test_wave_imports.py (wave 0) fails your build on the first violation and lint-imports enforces the same layers in CI from wave 5. Upward references go through the Protocols in nour/core/contracts.py (NotifierLike, FreezeLike, AuthFailureSink, IncidentSink, CriticLike, RedactorLike, AuditSink, CounterpartLookup) or injected callables (ApprovalsQueue receives mint; the gate reaches tool handlers via ToolRegistry).",
+    "Every side-effecting port method takes a PortCall first; the PortCall comes from AuditLog.span's opened row (ExecContext.call). A port call without an audit id is a type error and CallLog.without_audit() must stay empty.",
+    "Every text written into a prompt, memory, audit, owner message, outbound message, handoff or vector index is a SafeStr from LeakGuard.safe()/redact(); observed text shown to the model uses redact (never blocks), text Nour writes uses safe (raises). Never construct SafeStr directly.",
+    "Timestamps come only from the injected Clock (DB defaults call clock.process_now()); ids only from IdGenerator; datetime.now( is allowed only in nour/core/clock.py (ruff DTZ + AST walls test).",
+    "Nothing the model emits lowers a tier: TierResolver recomputes high_impact, new_counterpart, in_owner_name, irreversible, outbound and data_tier from ToolSpec, config and CRM/beneficiary lookups; tier and data_tier_touched from the model are stored only as model_claimed_*.",
+    "The passphrase is extracted, verified and redacted in the ingress process (IngressRedactor) before any row is written; no table ever holds it; LeakGuard.register_plaintext_once makes it a fingerprint hit anywhere. Freeze HIGH_IMPACT and alert the second channel on the FIRST wrong attempt.",
+    "The one-way gate carries Tier0Ref references (knowledge-pack keys, Operator-partition contacts, config paths, Operator tasks), never free-text facts; gate_handoff starts at tier K.",
+    "Wave 0 (core) is deliberately above the size band (~2,750 lines); split its sitting into types/contracts/ports then config/db/conftest if needed. Every other module is within ~800–1,350 lines including tests.",
+    "Config lives in the existing config/ directory (not configs/); the loader is tested against the real files. New files core must add: config/models.yaml, config/capabilities.yaml, config/coats/buzz-avenue.tone.md, config/coats/buzz-avenue.knowledge.md, .env.example, .github/workflows/ci.yml (with a postgres job running the DB tests marked @postgres).",
+    "Harness.build defaults: Monday 2026-10-05 07:00 Asia/Dubai, owner +971500000001, passphrase correct-horse-battery, second channel owner@example.com, a canary IBAN planted in the vault. Use tick=True only in the single @wallclock kill-switch test; the 48-hour gate run uses dry_run=True so zero sends is itself an assertion.",
+    "Docs/DESIGN.md §7 is the contract for the acceptance module: each §16 criterion and §18 scenario maps to a named file and assertion list; do not weaken an assertion to make a test pass — fix the module it exposes."
+  ]
+}
