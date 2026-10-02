@@ -1,0 +1,147 @@
+# Nour CI (docs/SPEC.md §16: "every capability ... has a test scenario in the weekly
+# regression set"; §13: "weekly behavioural regression tests on fixed scenarios").
+#
+# Jobs
+#   checks     lint, format, types, unit tests on SQLite (every push / PR)
+#   postgres   the tests marked `postgres` against a real postgres:16 service
+#   regression the fixed scenarios in tests/scenarios (every push / PR, and weekly)
+#
+# No secrets are needed by any job: the suite runs with NOUR_SECRETS_BACKEND=env,
+# a fake card issuer and dry-run on. Live channels are never touched from CI.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  schedule:
+    # Weekly regression run, Monday 03:00 UTC (07:00 Asia/Dubai, before the Monday brief).
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs of the same ref; never cancel a scheduled regression run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+env:
+  PYTHON_VERSION: "3.11"
+  UV_FROZEN: "1"            # uv.lock is the source of truth; never re-resolve in CI
+  NOUR_ENV: test
+  NOUR_DRY_RUN: "true"      # SPEC §8 dry-run mode: no sends, no spend
+  NOUR_TIMEZONE: Asia/Dubai
+  NOUR_SECRETS_BACKEND: env
+  NOUR_CARD_ISSUER: fake
+  NOUR_VAULT_STORAGE: local
+  NOUR_REGION: me-central-1
+
+jobs:
+  checks:
+    name: lint, types, tests (SQLite)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NOUR_DATABASE_URL: sqlite+pysqlite:///./nour-ci.sqlite3
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv and Python ${{ env.PYTHON_VERSION }}
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Sync dependencies (all groups)
+        run: uv sync --all-groups
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        run: uv run mypy
+
+      - name: Pytest (SQLite)
+        run: uv run pytest -q
+
+  postgres:
+    name: tests (PostgreSQL 16)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nour
+          POSTGRES_PASSWORD: nour
+          POSTGRES_DB: nour
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nour -d nour"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NOUR_DATABASE_URL: postgresql+psycopg://nour:nour@localhost:5432/nour
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv and Python ${{ env.PYTHON_VERSION }}
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Sync dependencies (all groups + postgres extra)
+        run: uv sync --all-groups --extra postgres
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U nour && exit 0
+            sleep 1
+          done
+          echo "PostgreSQL did not become ready" >&2
+          exit 1
+
+      - name: Pytest (-m postgres)
+        # Exit code 5 means "no tests collected": tolerated only here, because the
+        # postgres-marked subset may legitimately be empty for a while.
+        run: uv run pytest -q -m postgres || [ $? -eq 5 ]
+
+  regression:
+    name: weekly regression scenarios
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NOUR_DATABASE_URL: sqlite+pysqlite:///./nour-regression.sqlite3
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv and Python ${{ env.PYTHON_VERSION }}
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Sync dependencies (all groups)
+        run: uv sync --all-groups
+
+      - name: Run fixed scenarios (SPEC §13 / §16)
+        run: |
+          if [ -d tests/scenarios ]; then
+            uv run pytest -q tests/scenarios
+          else
+            echo "::warning::tests/scenarios does not exist yet; nothing to run"
+          fi

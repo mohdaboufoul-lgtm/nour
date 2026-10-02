@@ -1,0 +1,233 @@
+# Nour local / staging stack (docs/SPEC.md §4 infrastructure, §13 security, §14
+# continuity, §16 reference stack). Every secret-bearing value is interpolated from
+# ./.env (copy .env.example); nothing secret is written in this file.
+#
+#   docker compose up -d                  postgres + brain + auditor
+#   docker compose --profile s3 up -d     ... plus MinIO for S3-style vault storage
+#
+# Production is NOT this file: it is the same image on containers in a UAE region
+# (AWS me-central-1 or Azure UAE North) with the cloud's managed PostgreSQL, KMS,
+# secrets manager and object storage. See docs/OPERATIONS.md.
+
+name: nour
+
+# ---------------------------------------------------------------------------
+# Reused fragments
+# ---------------------------------------------------------------------------
+x-hardening: &hardening
+  # §13 "least privilege per credential" extends to the process: no capabilities,
+  # no privilege escalation, immutable root filesystem. Writable paths are only
+  # the explicitly mounted volumes and a tmpfs /tmp.
+  read_only: true
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp"]
+  init: true
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "50m", max-file: "5" }
+
+# ---------------------------------------------------------------------------
+# One-time role bootstrap for the audit-log reader (runs on first DB init only)
+# ---------------------------------------------------------------------------
+configs:
+  audit_role_init:
+    # §13 "one credential set per desk" / "least privilege per credential":
+    # the auditor gets its own LOGIN role that can read ONLY the `audit` schema
+    # (§15 AuditEvent, append-only) and nothing else: no Owner row, no
+    # documents, no beneficiaries, no memory. Migrations must create the
+    # append-only audit tables in schema `audit` for this grant to apply.
+    content: |
+      #!/bin/sh
+      set -eu
+      : "$${NOUR_AUDIT_DB_PASSWORD:?NOUR_AUDIT_DB_PASSWORD must be set in .env}"
+      psql -v ON_ERROR_STOP=1 --username "$$POSTGRES_USER" --dbname "$$POSTGRES_DB" <<SQL
+        CREATE SCHEMA IF NOT EXISTS audit AUTHORIZATION "$$POSTGRES_USER";
+        CREATE ROLE nour_audit LOGIN PASSWORD '$$NOUR_AUDIT_DB_PASSWORD';
+        ALTER ROLE nour_audit SET default_transaction_read_only = on;
+        REVOKE ALL ON SCHEMA public FROM PUBLIC;
+        GRANT ALL ON SCHEMA public TO "$$POSTGRES_USER";
+        GRANT CONNECT ON DATABASE "$$POSTGRES_DB" TO nour_audit;
+        GRANT USAGE ON SCHEMA audit TO nour_audit;
+        ALTER DEFAULT PRIVILEGES FOR ROLE "$$POSTGRES_USER" IN SCHEMA audit
+          GRANT SELECT ON TABLES TO nour_audit;
+      SQL
+
+# ---------------------------------------------------------------------------
+# Services
+# ---------------------------------------------------------------------------
+services:
+
+  postgres:
+    # §4 / §16: PostgreSQL for records, the ledger and the audit log.
+    image: postgres:16
+    restart: unless-stopped
+    # `environment` + interpolation instead of `env_file`: only the three
+    # POSTGRES_* values reach this container, not the model/WhatsApp keys (§13).
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+      NOUR_AUDIT_DB_PASSWORD: ${NOUR_AUDIT_DB_PASSWORD:?set in .env}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+      TZ: ${NOUR_TIMEZONE:-Asia/Dubai}
+    configs:
+      - source: audit_role_init
+        target: /docker-entrypoint-initdb.d/10-audit-role.sh
+        mode: 0555
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Loopback only: the database is never exposed beyond this host (§13
+    # "encryption ... in transit"; in production use the managed DB with TLS).
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 30s
+
+  brain:
+    # §4: the server brain running both desks' agent loops, the event bus,
+    # watchdog, kill switch and the vault service.
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.11"
+    image: nour:local
+    command: ["nour", "serve"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NOUR_ENV: ${NOUR_ENV:-development}
+      # Full read/write role; the ONLY container holding it (§13 one credential set per desk).
+      NOUR_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      NOUR_CONFIG_DIR: /app/config
+      NOUR_PROMPTS_DIR: /app/prompts
+      NOUR_TIMEZONE: ${NOUR_TIMEZONE:-Asia/Dubai}
+      NOUR_REGION: ${NOUR_REGION:-me-central-1}
+      # Model layer (§4): primary frontier model for both desks, a different
+      # vendor as fallback. The auditor's vendor/model is NOT configured here.
+      NOUR_PRIMARY_MODEL_VENDOR: ${NOUR_PRIMARY_MODEL_VENDOR:-anthropic}
+      NOUR_PRIMARY_MODEL: ${NOUR_PRIMARY_MODEL:?set in .env}
+      NOUR_FALLBACK_MODEL_VENDOR: ${NOUR_FALLBACK_MODEL_VENDOR:-openai}
+      NOUR_FALLBACK_MODEL: ${NOUR_FALLBACK_MODEL:?set in .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # §13 token leakage: in production NOUR_SECRETS_BACKEND is the cloud
+      # secrets manager and *_REF values are references, not secrets.
+      NOUR_SECRETS_BACKEND: ${NOUR_SECRETS_BACKEND:-env}
+      # §11 / §4: encrypted vault object storage. `local` writes to the named
+      # volume below; `s3` targets MinIO (profile s3) or in-region object storage.
+      NOUR_VAULT_STORAGE: ${NOUR_VAULT_STORAGE:-local}
+      NOUR_VAULT_LOCAL_PATH: /data/vault
+      NOUR_VAULT_KEY_REF: ${NOUR_VAULT_KEY_REF:?set in .env}
+      NOUR_S3_ENDPOINT: ${NOUR_S3_ENDPOINT:-http://minio:9000}
+      NOUR_S3_BUCKET: ${NOUR_S3_BUCKET:-nour-vault}
+      NOUR_S3_ACCESS_KEY: ${NOUR_S3_ACCESS_KEY:-}
+      NOUR_S3_SECRET_KEY: ${NOUR_S3_SECRET_KEY:-}
+      # §6 command authentication: the owner's registered number; the passphrase
+      # is NEVER an environment variable (argon2 hash in the Owner record).
+      NOUR_OWNER_WHATSAPP_NUMBER: ${NOUR_OWNER_WHATSAPP_NUMBER:?set in .env}
+      NOUR_WHATSAPP_APP_SECRET: ${NOUR_WHATSAPP_APP_SECRET:-}
+      NOUR_WHATSAPP_VERIFY_TOKEN: ${NOUR_WHATSAPP_VERIFY_TOKEN:-}
+      NOUR_WHATSAPP_ACCESS_TOKEN_REF: ${NOUR_WHATSAPP_ACCESS_TOKEN_REF:-}
+      NOUR_SECOND_CHANNEL: ${NOUR_SECOND_CHANNEL:-email}
+      # §10 / §13 runaway spend: `fake` issuer until the capped card is live.
+      NOUR_CARD_ISSUER: ${NOUR_CARD_ISSUER:-fake}
+      # §8 dry-run mode: drafts and logs, no sends, no spend. Default ON.
+      NOUR_DRY_RUN: ${NOUR_DRY_RUN:-true}
+    volumes:
+      # Version-controlled, owner-editable config and prompts (§15 "Config files",
+      # §18). Read-only: the running agent can never edit its own constitution.
+      - ./config:/app/config:ro
+      - ./prompts:/app/prompts:ro
+      # Vault object storage (§11: one encrypted vault off the phone). Only the
+      # brain mounts it; the auditor and MinIO console never see plaintext.
+      - vault:/data/vault
+    # Loopback only; the public webhook URL terminates at a reverse proxy / tunnel
+    # that forwards here, so the brain is never directly on the internet (§13).
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  auditor:
+    # §4 "a separate auditor reads [the log]"; §16 "a separate container for the
+    # auditor on a different model". Same image, different process, different
+    # credentials, different vendor, no vault.
+    <<: *hardening
+    image: nour:local
+    command: ["nour", "auditor", "run", "--daily"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      brain:
+        condition: service_started
+    environment:
+      NOUR_ENV: ${NOUR_ENV:-development}
+      # ONLY the read-only audit-log role (§13: one credential set per desk;
+      # §15 AuditEvent "append-only, off-device; auditor reads it"). No
+      # NOUR_DATABASE_URL here on purpose.
+      NOUR_AUDIT_DATABASE_URL: postgresql+psycopg://nour_audit:${NOUR_AUDIT_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      NOUR_CONFIG_DIR: /app/config
+      NOUR_PROMPTS_DIR: /app/prompts
+      NOUR_TIMEZONE: ${NOUR_TIMEZONE:-Asia/Dubai}
+      NOUR_REGION: ${NOUR_REGION:-me-central-1}
+      # Different vendor from the brain's primary (§4 model layer; §13 provider
+      # outage / model drift). The key name differs too: this container never
+      # receives ANTHROPIC_API_KEY, and its vendor key is a separate credential
+      # (NOUR_AUDITOR_API_KEY), not the brain's fallback key.
+      NOUR_AUDITOR_MODEL_VENDOR: ${NOUR_AUDITOR_MODEL_VENDOR:-openai}
+      NOUR_AUDITOR_MODEL: ${NOUR_AUDITOR_MODEL:?set in .env}
+      OPENAI_API_KEY: ${NOUR_AUDITOR_API_KEY:?set in .env}
+      NOUR_SECRETS_BACKEND: ${NOUR_SECRETS_BACKEND:-env}
+      NOUR_AUDITOR_REPORT_DIR: /data/audit-reports
+      NOUR_DRY_RUN: ${NOUR_DRY_RUN:-true}
+    volumes:
+      # Version-controlled, owner-editable config and prompts (§15 "Config files",
+      # §18). Read-only: the running agent can never edit its own constitution.
+      - ./config:/app/config:ro
+      - ./prompts:/app/prompts:ro
+      # Daily findings land here, never in the vault volume (§6: Tier 2 content
+      # never enters logs; the auditor has no path to it at all).
+      - audit_reports:/data/audit-reports
+    # No ports: the auditor accepts no inbound traffic.
+
+  minio:
+    # Development stand-in for in-region S3-compatible object storage (§11 "one
+    # encrypted vault ... in the owner's UAE cloud region"). Dev only: in
+    # production use S3 in me-central-1 / Blob in UAE North with KMS encryption.
+    profiles: ["s3"]
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in .env}
+      MINIO_REGION: ${NOUR_REGION:-me-central-1}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ---------------------------------------------------------------------------
+# Volumes: all local state lives here (§13: memory lives server-side; §14:
+# daily encrypted backups of memory, vault, ledger, CRM and audit log).
+# `make backup` snapshots postgres_data + vault; `make restore-test` verifies.
+# ---------------------------------------------------------------------------
+volumes:
+  postgres_data:
+  vault:
+  audit_reports:
+  minio_data:
