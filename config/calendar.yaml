@@ -1,0 +1,46 @@
+# Cultural calendar, quiet hours and daily rhythm (SPEC §9, §12, §14). Dubai time is the
+# system clock.
+timezone: Asia/Dubai
+
+outreach_window:
+  start: "09:00"
+  end: "20:00"
+  blocked_weekday_slots:
+    - { day: friday, start: "11:30", end: "13:30", reason: Friday midday }
+  prayer_times:
+    block: true
+    buffer_minutes: 20
+    source: computed            # computed per day for Dubai; owner may override with a table
+  ramadan:
+    adjust_hours: true
+    outreach_window: { start: "10:00", end: "16:00" }
+    dates: []                   # owner confirms each year (lunar)
+  blocked_dates:                # Eid and national holidays; lunar dates are approximate
+    - { name: New Year's Day, date: 2027-01-01 }
+    - { name: Eid al-Fitr (approx.), start: 2027-03-09, end: 2027-03-12, confirm: true }
+    - { name: Arafat Day and Eid al-Adha (approx.), start: 2027-05-15, end: 2027-05-18, confirm: true }
+    - { name: Islamic New Year (approx.), date: 2027-06-06, confirm: true }
+    - { name: Prophet's Birthday (approx.), date: 2027-08-14, confirm: true }
+    - { name: Commemoration Day and National Day, start: 2026-12-02, end: 2026-12-03 }
+    - { name: Commemoration Day and National Day, start: 2027-12-02, end: 2027-12-03 }
+
+quiet_hours:
+  start: "22:00"
+  end: "07:00"
+  emergencies_only: true
+  emergency_categories:
+    - active_fraud_attempt
+    - payment_failure
+    - legal_deadline_within_24h
+    - customer_safety_issue
+    - system_compromise
+
+daily_rhythm:
+  morning_brief: "07:30"
+  evening_close: "20:30"
+  nightly_reflection: "23:30"
+  weekly_review: { day: monday, time: "08:00" }
+  initiative_budget_per_day: 5
+  notify_within_minutes: 60
+
+study_slot_minutes_per_day: 30

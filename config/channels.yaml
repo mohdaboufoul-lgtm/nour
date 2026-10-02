@@ -1,0 +1,58 @@
+# Channels, caps and warm-up schedules (SPEC §9, §13).
+owner_thread:
+  channel: whatsapp
+  desk: both
+  use: [commands, voice_notes, briefs, approvals]
+  allowed_senders: owner_number_only
+  passphrase_for_high_impact: true
+
+whatsapp_business:          # one line per coat
+  desk: both
+  use: [warm_conversations, replies, customer_service]
+  cold_mass_messaging: false
+  template_messages_for_first_contact: true
+  daily_send_cap_start: 50
+  raise_cap_weekly_while_block_rate_under: 0.01
+  block_rate_freeze_threshold: 0.01
+
+email:                      # one address per coat on the company domain
+  desk: both
+  use: [cold_outreach, formal_correspondence, documents]
+  require_spf_dkim_dmarc: true
+  cold_daily_cap: 40
+  warmup_weeks: 4
+  warmup_schedule: [10, 20, 30, 40]      # daily cold-send cap per warm-up week
+  consumer_mail_opt_out: one_click
+
+owner_mailboxes:            # delegated via OAuth
+  desk: assistant
+  use: [triage, drafts, approved_sends]
+  oauth_scopes: [read, draft, send]
+  password_held: false
+
+ai_voice_line:              # per coat
+  desk: operator
+  use: [outbound_follow_ups, inbound_answering, voicemail_transcription]
+  disclose_ai_on_request: true
+  record_only_where_lawful: true
+  transcripts_kept: true
+  audio_retention_days: 7
+
+staff_request_lines:
+  desk: assistant
+  use: [requests, report_collection]
+  can_command: false
+  money_requires_owner_approval: true
+
+cadences:
+  default_follow_up_days: [0, 3, 7, 14]
+  then_monthly: true
+  stop_on_any_reply: true
+
+consent:
+  do_not_contact_shared_across_coats: true    # a no anywhere is a no everywhere
+  consumer_messages_carry_opt_out: true
+  business_contacts_removal_in_one_message: true
+
+watchdog:
+  failed_sends_per_hour_freeze: 10

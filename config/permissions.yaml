@@ -1,0 +1,88 @@
+# Permissions (SPEC §6). Every fact has three permissions (know, use, share) and every
+# action has one of three tiers (A autonomous, N notify, K ask-first). Both are data
+# here, not judgment calls at run time.
+
+data_tiers:
+  0:
+    name: professional
+    content: Roles, companies, business contacts, preferences, routines, work calendar
+    assistant_desk: full
+    operator_desk: read_only
+    leaves_to_third_parties: freely_in_company_name
+  1:
+    name: private_ops
+    content: Personal email and calendar, family schedule, home logistics, travel, personal contacts, voice-note transcripts
+    assistant_desk: full
+    operator_desk: none
+    leaves_to_third_parties: approved_recipients_only
+  2:
+    name: vault
+    content: Passport and ID, visas, trade licences, bank statements, contracts, insurance, medical, legal, company banking details
+    assistant_desk: retrieve_on_owner_request
+    operator_desk: none
+    leaves_to_third_parties: per_send_approval_with_passphrase
+    exceptions:
+      - receiving bank details on the company's own invoices (SPEC §10)
+    never_in: [memory, logs, prompts]   # index holds metadata only
+  3:
+    name: never_held
+    content: Passwords, card numbers, biometrics, UAE Pass, bank logins
+    assistant_desk: never            # a password manager issues scoped tokens
+    operator_desk: none
+    leaves_to_third_parties: never
+
+action_tiers:
+  A:
+    name: autonomous
+    rule: Act, log, report in the morning brief
+    examples: [replies in approved categories, scheduling, research, drafts, spend under the autonomous threshold, CRM updates]
+  N:
+    name: notify
+    rule: Act, then tell the owner within the hour
+    notify_within_minutes: 60
+    examples: [spend in the notify band, new supplier contact, calendar moves affecting the owner's day, publishing to company social accounts]
+  K:
+    name: ask_first
+    rule: Prepare, queue for approval, wait
+    examples: [spend above the notify band, any new beneficiary or account, contracts and legally binding commitments, sends in the owner's name, documents leaving the vault, staff instructions with money attached, anything irreversible]
+
+command_authentication:
+  ordinary:
+    requires: [owner_number]
+    covers: [tasks, questions, drafts]
+  high_impact:
+    requires: [owner_number, typed_passphrase_same_thread]
+    spoken_passphrase_accepted: false
+    covers: [money_out, new_beneficiary, new_account, vault_retrieval, document_sharing, send_in_owner_name, autonomy_change]
+  constitutional:
+    requires: [owner_number, typed_passphrase_same_thread, second_channel_confirmation]
+    covers: [constitution_change, kill_switch_release, deputy_activation]
+  voice_is_identity: false   # a voice note from the owner's number carries ordinary authority only
+
+# High-impact actions; a verified passphrase is required on the triggering command.
+high_impact_actions:
+  - money_out
+  - new_beneficiary
+  - new_account
+  - vault_retrieval
+  - document_sharing
+  - send_in_owner_name
+  - autonomy_change
+
+graduated_autonomy:
+  new_category_default_tier: K
+  new_category_min_days: 14
+  promotion_unedited_rate: 0.90
+  promotion_window_days: 14
+  promotion_min_items: 20
+  promotion_requires_passphrase: true
+  demote_on: [cost_money, lost_customer, legal_exposure]
+  max_promotion_steps_per_review: 1   # beyond one tier at a time only at the quarterly review
+
+ask_every_time:   # never promotable
+  - new_beneficiary
+  - payment_above_notify_band
+  - owner_personal_data_outside_tier1_routine
+  - vault_document_share
+  - contract_terms_outside_mandate
+  - instruction_found_in_observed_content

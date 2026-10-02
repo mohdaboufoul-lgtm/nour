@@ -1,0 +1,31 @@
+# Coat bundle for Buzz Avenue (SPEC §5, §18). One record per company.
+# The Operator desk may wear this coat only; the Assistant desk may wear every coat.
+name: Buzz Avenue
+slug: buzz-avenue
+legal_entity: Buzz Avenue (company licence on file in vault)
+desks_allowed: [operator, assistant]
+identity:
+  title: AI assistant, Buzz Avenue
+  email: nour@<company-domain>
+  whatsapp_line: <business-line-number>
+  signature_ref: templates/signature.buzz-avenue.html
+  letterhead_ref: templates/letterhead.buzz-avenue.pdf
+  verification_page: https://<company-domain>/nour
+tone_guide_ref: coats/buzz-avenue.tone.md
+knowledge_pack_ref: coats/buzz-avenue.knowledge.md
+mandate:
+  price_floor_pct_of_list: 85
+  discount_max_pct: 15
+  payment_terms_allowed: [advance, net15, net30]
+  templates_allowed: [quote, invoice, proposal, nda_standard]
+  owner_only: [contracts_over_aed_20000, exclusivity, credit_terms_beyond_net30]
+approval_rules:
+  default_new_category: K
+  autonomous_categories: []
+  notify_categories: [scheduling, supplier_inquiry]
+allowed_activities: [sell, support, procure, chase_invoices]
+banking_ref: vault://buzz-avenue/banking/receiving
+channels:
+  whatsapp_daily_cap: 50
+  email_cold_daily_cap: 40
+  warmup_weeks: 4

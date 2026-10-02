@@ -1,0 +1,28 @@
+# Incapacity protocol and deputy (SPEC §14). The deputy is activated by passphrase plus
+# second-channel confirmation, or automatically after the silence thresholds below.
+deputy:
+  name: <owner sets>
+  contact_channels: []          # e.g. [{type: whatsapp, value: "+971..."}, {type: email, value: "..."}]
+
+thresholds:
+  owner_silent_days_pause_commitments: 3   # pause tier A sends that commit the companies; keep replies and renewals; ping owner on second channel
+  owner_silent_days_activate_deputy: 7     # activate deputy; tell the owner on every channel on file
+
+deputy_powers:
+  - pause_nour
+  - approve_renewals
+  - approve_routine_payments_to_registered_beneficiaries
+  - read_audit_log
+  - read_morning_brief
+  - receive_incident_reports
+
+deputy_never_gets:
+  - vault
+  - owner_mailboxes
+  - constitution_changes
+  - new_beneficiaries
+  - kill_switch_release
+
+owner_return:
+  ends_deputy_mode_on: passphrase
+  report: everything done in the owner's absence

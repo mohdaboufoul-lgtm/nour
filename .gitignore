@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# Local state (never commit secrets, vault content, or databases)
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
+secrets/
+vault_data/
+backups/
+*.log
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

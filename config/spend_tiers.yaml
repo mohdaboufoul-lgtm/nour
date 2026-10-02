@@ -1,0 +1,16 @@
+# Spend tiers (SPEC §10, §18). AED per transaction. Caps live in the card and in this
+# file, never in Nour's judgment. The owner edits these values.
+currency: AED
+monthly_cap:
+  operator: 3000                 # test capital; the Operator card declines above this
+  assistant_logistics: null      # <owner sets>
+  ai_models_within_operator: null  # <owner sets>; budget line inside the Operator cap
+bands:
+  - { max: 200, tier: A }        # Small: spend and log
+  - { max: 1000, tier: N }       # Medium: spend, then notify within the hour
+  - { max: null, tier: K }       # Large: queue for passphrase approval
+always_K: [new_beneficiary, new_account, recurring_subscription, customer_refund]
+watchdog:
+  daily_spend_multiple_freeze: 3       # freeze when daily spend exceeds expectation by 3x
+  failed_sends_per_hour_freeze: 10     # freeze on more than 10 failed sends in an hour
+  loop_repeat_freeze: 3                # same action three times without new input
