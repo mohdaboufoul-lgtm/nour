@@ -76,7 +76,9 @@ def count_statements() -> Iterator[StatementCounter]:
 def _queue_customers(h: Harness, n: int = 10) -> list[Any]:
     """Ten strangers on the Buzz Avenue line, enqueued (no step yet)."""
     return [
-        h.stranger_whatsapp(f"+97152{i:07d}", f"Hi, is item {i} still in stock and what is the price?")
+        h.stranger_whatsapp(
+            f"+97152{i:07d}", f"Hi, is item {i} still in stock and what is the price?"
+        )
         for i in range(n)
     ]
 

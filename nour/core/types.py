@@ -24,7 +24,7 @@ from decimal import Decimal, InvalidOperation
 from enum import IntEnum, StrEnum
 from typing import Any, NewType
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, StrictInt, field_validator
 from pydantic_core import core_schema
 
 from nour.core.errors import CurrencyMismatch, ReasonError, Tier2LeakError
@@ -288,12 +288,14 @@ _CENT = Decimal("0.01")
 class Money(BaseModel, frozen=True):
     """§10: integer minor units; AED only in phase 0 (currency validated against spend_tiers.currency).
 
-    ``fils`` is a signed integer (refunds and P&L need negatives); there is no float anywhere.
-    Arithmetic and ordering between two different currencies raise :class:`CurrencyMismatch`;
-    equality between different currencies is simply ``False``.
+    ``fils`` is a signed integer (refunds and P&L need negatives); there is no float anywhere,
+    and the field is strict: a ``bool`` (pydantic would read ``True`` as one fils) or a numeric
+    string is refused, exactly as :meth:`aed` refuses them. Arithmetic and ordering between two
+    different currencies raise :class:`CurrencyMismatch`; equality between different currencies
+    is simply ``False``.
     """
 
-    fils: int
+    fils: StrictInt
     currency: str = "AED"
 
     @field_validator("currency")
@@ -375,7 +377,16 @@ REASON_MAX = 240
 REASON_TERMINATORS = frozenset({".", "!", "?", "؟", "۔"})
 """Sentence terminators: ``.`` ``!`` ``?`` plus the Arabic question mark (U+061F) and the Arabic
 full stop (U+06D4)."""
-_NEWLINES = ("\n", "\r")
+
+
+def _first_line_break(text: str) -> int | None:
+    """Index of the first character ``str.splitlines`` treats as a line break (``\\n``, ``\\r``,
+    ``\\x0b``, ``\\x0c``, ``\\x1c``–``\\x1e``, ``\\x85``, U+2028, U+2029), else ``None``: an audit
+    reason must render as one line in every viewer, not only one ``\\n``-free string."""
+    first = text.splitlines()[0] if text else ""
+    if len(first) == len(text):
+        return None
+    return len(first)
 
 
 class Reason(str):
@@ -383,6 +394,8 @@ class Reason(str):
     ('.', '!', '?', '؟', '۔') and it must be the last character if present. Raises ReasonError.
 
     The minimum counts non-blank characters (``"   "`` is not a reason); the maximum counts all.
+    "No newline" means no character ``str.splitlines`` breaks on (Unicode line and paragraph
+    separators and the C0/C1 line controls included).
     """
 
     __slots__ = ()
@@ -397,7 +410,7 @@ class Reason(str):
             raise ReasonError(f"reason too short ({len(text.strip())} < {REASON_MIN} chars)")
         if length > REASON_MAX:
             raise ReasonError(f"reason too long ({length} > {REASON_MAX} chars)")
-        if any(nl in text for nl in _NEWLINES):
+        if _first_line_break(text) is not None:
             raise ReasonError("reason must be one line")
         terminators = [i for i, ch in enumerate(text) if ch in REASON_TERMINATORS]
         if len(terminators) > 1:
@@ -422,10 +435,10 @@ class Reason(str):
         if not stripped:
             return None
         cut = len(stripped)
-        for i, ch in enumerate(stripped):
-            if ch in _NEWLINES:
-                cut = i
-                break
+        line_break = _first_line_break(stripped)
+        if line_break is not None:
+            cut = line_break
+        for i, ch in enumerate(stripped[:cut]):
             if ch in REASON_TERMINATORS:
                 cut = i + 1
                 break
@@ -464,7 +477,15 @@ Identity-compared in ``SafeStr.__new__`` (``_minted_by is _MINT``)."""
 
 class SafeStr(str):
     """A str that passed LeakGuard. Constructible only by LeakGuard.safe()/redact() (constructor checks
-    a module-private token); any other construction raises Tier2LeakError. Every sink Nour writes is typed on it."""
+    a module-private token); any other construction raises Tier2LeakError. Every sink Nour writes is typed on it.
+
+    Two routes bypass the constructor and are closed elsewhere: ``str.__new__(SafeStr, …)`` /
+    ``SafeStr.__new__`` and pydantic's ``model_construct`` are confined by the AST walls
+    (``tests/unit/test_walls.py``: never used anywhere), and ``BaseModel.model_copy(update=…)``
+    is *unvalidated* by pydantic, so a plain ``str`` dropped in through an update lands in a
+    ``SafeStr`` field unchecked. Later waves rebuild a DTO through its constructor when a
+    ``SafeStr`` field changes; they never ``model_copy(update=…)`` one.
+    """
 
     __slots__ = ()
 

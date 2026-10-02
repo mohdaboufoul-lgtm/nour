@@ -18,7 +18,6 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from nour.core import types as core_types
 from nour.core.clock import DUBAI
 from nour.core.errors import Tier2LeakError
 from nour.core.hashing import (
@@ -30,15 +29,16 @@ from nour.core.hashing import (
     keyed_hash,
     sha256_hex,
 )
+from nour.core.leakguard import LeakGuard
 from nour.core.types import ActionTier, DataTier, Desk, Money, Reason, SafeStr
 
-_safe_ctor = SafeStr
-_MINT = core_types._MINT
 DUBAI_0700 = datetime(2026, 10, 5, 7, 0, tzinfo=DUBAI)
+_GUARD = LeakGuard(b"hashing-test-key-0123456789abcdef")
 
 
 def _minted(text: str) -> SafeStr:
-    return _safe_ctor(text, _minted_by=_MINT)
+    """A SafeStr the way every sink gets one: through LeakGuard (the mint stays in leakguard.py)."""
+    return _GUARD.safe(text)
 
 
 class Marked:

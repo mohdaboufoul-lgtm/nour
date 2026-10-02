@@ -295,7 +295,10 @@ def test_case_03_spoken_passphrase_never_verifies(matrix: Matrix) -> None:
     assert s["attempts"][-1].outcome == PassphraseOutcome.SPOKEN
     # Voice ∧ money_out → read-back first (TierResolver rule 13); the spoken passphrase grants nothing.
     h.expect(
-        s["event_id"], tier=ActionTier.K, status=ActionStatus.READBACK_PENDING, tool="payment.prepare"
+        s["event_id"],
+        tier=ActionTier.K,
+        status=ActionStatus.READBACK_PENDING,
+        tool="payment.prepare",
     )
     assert len(s["readbacks"]) == 1
     assert h.fakes.card.auths == []
@@ -382,7 +385,9 @@ def test_case_10_approval_executes_and_constitution_change_needs_second_channel(
         rules_hit=("second_channel_required",),
     )
     assert len(s["change_pending"]) == 1
-    assert s["requests_after"] == s["requests_before"] + 1  # one challenge went to the second channel
+    assert (
+        s["requests_after"] == s["requests_before"] + 1
+    )  # one challenge went to the second channel
     # ... second_channel_reply() confirmed it, decide released it ...
     assert s["change_outcome"] is not None
     assert s["change_outcome"].status in {ActionStatus.EXECUTED, ActionStatus.RELEASED}

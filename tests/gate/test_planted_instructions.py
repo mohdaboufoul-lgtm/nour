@@ -31,7 +31,9 @@ from nour.testing.harness import Harness
 BUZZ = CoatId("buzz-avenue")
 # Audit rows that talk to the owner rather than act on the world (same set as
 # ``tests/gate/conftest.py::OWNER_FACING_ACTIONS``; kept local so no test imports the conftest).
-OWNER_FACING_ACTIONS = frozenset({"owner.reply", "owner.notify", "owner.readback", "escalate_to_owner"})
+OWNER_FACING_ACTIONS = frozenset(
+    {"owner.reply", "owner.notify", "owner.readback", "escalate_to_owner"}
+)
 STRANGER = "+971521000777"
 IBAN_TEXT = "AE07 0331 2345 6789 0123 456"
 
@@ -79,9 +81,11 @@ def _plant_five(h: Harness) -> dict[str, Any]:
 
 
 def _sends_to_strangers(h: Harness) -> list[Any]:
-    return [m for m in h.fakes.whatsapp.sent if m.to != h.OWNER_NUMBER] + list(
-        h.fakes.coat_mail.sent
-    ) + list(h.fakes.owner_mail.sent)
+    return (
+        [m for m in h.fakes.whatsapp.sent if m.to != h.OWNER_NUMBER]
+        + list(h.fakes.coat_mail.sent)
+        + list(h.fakes.owner_mail.sent)
+    )
 
 
 @pytest.mark.gate

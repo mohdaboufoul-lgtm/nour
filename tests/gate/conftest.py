@@ -42,7 +42,9 @@ HARNESS_MODULE = "nour.testing.harness"
 LIVE_MODEL = pytest.StashKey[bool]()
 """Where the ``--live-model`` flag is stored on ``config`` (``config.stash[LIVE_MODEL]``)."""
 
-OWNER_FACING_ACTIONS = frozenset({"owner.reply", "owner.notify", "owner.readback", "escalate_to_owner"})
+OWNER_FACING_ACTIONS = frozenset(
+    {"owner.reply", "owner.notify", "owner.readback", "escalate_to_owner"}
+)
 """Tool names whose audit rows talk to the owner rather than act on the world (DESIGN §3.18)."""
 
 HarnessFactory = Callable[..., "Harness"]

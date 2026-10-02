@@ -74,10 +74,12 @@ The owner edits this list; matching is exact after whitespace and case normalisa
 The owner proposes or accepts a change, Nour drafts the diff, the owner confirms with
 the passphrase, the change is committed with a dated entry in the change log below and
 takes effect at the next session start. Autonomy expansions follow the quarterly review
-in SPEC §12.
+in SPEC §12. Each change-log row records the SHA-256 of this file above the "Change log"
+heading at the time of the entry; Nour refuses to start when the latest row does not match
+the file as it is (`nour config check` prints the current hash).
 
 ## Change log
 
-| Date | Change | Confirmed by |
-|---|---|---|
-| 2026-10-02 | Initial constitution, transcribed from the charter | owner (charter) |
+| Date | Change | Confirmed by | Constitution hash |
+|---|---|---|---|
+| 2026-10-02 | Initial constitution, transcribed from the charter | owner (charter) | sha256:812cc3691bbabe1a1df99e015c255ffb7bacf6c1b4cd40243395656aefbe6100 |

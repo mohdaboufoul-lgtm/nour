@@ -1,7 +1,12 @@
 """nour/core/tokens.py (DESIGN §3.2; SPEC §5 §13): the DeskToken family, AuditorToken and mint.
 
 Proves (MODULES.md "core"): mint refuses construction without the seal (``DeskToken(Desk.OPERATOR)``
-raises; ``AssistantToken`` cannot carry OPERATOR); tokens are immutable and unpicklable.
+raises; ``AssistantToken`` cannot carry OPERATOR); tokens are immutable and unpicklable; the four
+token classes are final; only a token ``mint`` produced counts as minted, so an ``object.__new__``
+look-alike opens nothing.
+
+This file tests ``mint`` itself and the seal, so it imports ``mint`` under an alias and reads the
+module-private ``_SEAL``; ``tests/unit/test_walls.py`` allows exactly that here and nowhere else.
 """
 
 from __future__ import annotations
@@ -20,6 +25,8 @@ from nour.core.tokens import (
     DeskToken,
     GovernanceToken,
     OperatorToken,
+    is_minted,
+    require_minted,
 )
 from nour.core.tokens import mint as make_token  # aliased: `mint(` is confined by the AST walls
 from nour.core.types import Desk
@@ -71,6 +78,58 @@ def test_a_wrong_seal_leaves_no_half_built_token() -> None:
     # Nothing to inspect: construction failed before `desk` was assigned.
     with pytest.raises(AttributeError):
         _ = object.__new__(OperatorToken).desk
+
+
+# --------------------------------------------------------------------------- finality and the minted registry
+
+
+@pytest.mark.parametrize("cls", [OperatorToken, AssistantToken, GovernanceToken, AuditorToken])
+def test_token_classes_are_final(cls: type) -> None:
+    with pytest.raises(TypeError, match="final"):
+        type("Evil", (cls,), {"_fixed_desk": Desk.ASSISTANT})
+    with pytest.raises(TypeError, match="final"):
+
+        class Sneaky(cls):
+            pass
+
+
+def test_desk_token_accepts_only_its_three_subclasses_defined_once() -> None:
+    with pytest.raises(TypeError, match="sealed"):
+        type("Evil", (DeskToken,), {"_fixed_desk": Desk.ASSISTANT})
+    with pytest.raises(TypeError, match="sealed"):  # same name, same module, second definition
+        type(
+            "OperatorToken",
+            (DeskToken,),
+            {"__module__": "nour.core.tokens", "_fixed_desk": Desk.ASSISTANT},
+        )
+    with pytest.raises(TypeError, match="sealed"):
+
+        class AssistantToken2(DeskToken):
+            _fixed_desk = Desk.ASSISTANT
+
+
+def test_only_minted_tokens_are_minted() -> None:
+    for kind in ("operator", "assistant", "governance", "auditor"):
+        token = make_token(kind)
+        assert is_minted(token)
+        assert require_minted(token, "test") is token
+    forged = object.__new__(AssistantToken)
+    object.__setattr__(forged, "desk", Desk.ASSISTANT)
+    assert isinstance(forged, AssistantToken) and forged.desk is Desk.ASSISTANT
+    assert not is_minted(forged)
+    with pytest.raises(AuthError, match="not minted"):
+        require_minted(forged, "the vault")
+    assert not is_minted(object.__new__(AuditorToken))
+    with pytest.raises(AuthError):
+        require_minted(object.__new__(AuditorToken))
+    # the seal alone does not mint: a token built with it but outside mint is still refused
+    assert not is_minted(AssistantToken(_seal=_SEAL))
+    assert not is_minted(DeskToken(Desk.OPERATOR, _seal=_SEAL))
+    assert not is_minted(object()) and not is_minted("operator") and not is_minted(None)
+    with pytest.raises(TypeError):
+        require_minted("operator")
+    with pytest.raises(TypeError):
+        require_minted(object())
 
 
 # --------------------------------------------------------------------------- fixed desks
@@ -162,6 +221,11 @@ def test_tokens_are_immutable_slotted_and_unpicklable(kind: str) -> None:
 
 
 def test_slots_declared_on_every_class() -> None:
-    assert DeskToken.__slots__ == ("desk",)
-    for cls in (OperatorToken, AssistantToken, GovernanceToken, AuditorToken):
+    assert DeskToken.__slots__ == ("desk", "__weakref__")  # __weakref__ for the minted registry
+    for cls in (OperatorToken, AssistantToken, GovernanceToken):
         assert cls.__slots__ == ()
+    assert AuditorToken.__slots__ == ("__weakref__",)
+    for kind in ("operator", "auditor"):
+        token = make_token(kind)
+        with pytest.raises(AttributeError):
+            _ = token.__dict__

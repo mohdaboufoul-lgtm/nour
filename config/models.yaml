@@ -1,0 +1,33 @@
+# Model endpoints per role (SPEC §4 model layer, §8 self-critic, §12 auditor, §14 residency;
+# ids verified in docs/adapters/models.md on 2026-10-02). The owner edits these values.
+#
+# Rules enforced at config load (nour/config/schema.py ModelsConfig):
+#   - fallback.vendor != primary.vendor  (SPEC §4: a different vendor's model as fallback)
+#   - auditor.vendor  != primary.vendor  (SPEC §12: the auditor runs on a different model)
+# `vendor` is the adapter name (anthropic | openai | self_hosted), never a substring of the id.
+# `region: null` means the vendor's default endpoint; set the UAE processing region when the
+# adapter supports it (docs/adapters/models.md §2.8, §3.4). Keys are never stored here.
+
+primary:
+  vendor: anthropic
+  model: claude-fable-5-1
+  region: null
+
+fallback:
+  vendor: openai
+  model: gpt-6.1-sol
+  region: null
+
+critic:
+  vendor: anthropic
+  model: claude-sonnet-5-5
+  region: null
+
+auditor:
+  vendor: openai
+  model: gpt-6.1-sol
+  region: null
+
+# Phase 3: the private in-region model for Tier 2 content (docs/adapters/models.md §4), e.g.
+#   private_tier2: { vendor: self_hosted, model: jais-2-70b, region: me-central-1 }
+private_tier2: null

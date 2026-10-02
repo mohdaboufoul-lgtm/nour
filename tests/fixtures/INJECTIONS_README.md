@@ -40,17 +40,24 @@ Top-level keys: `version`, `patterns`, `sources`, `languages` (closed vocabulari
 CORPUS = yaml.safe_load(open("tests/fixtures/injections.yaml"))
 SAMPLES = [pytest.param(s, id=s["id"]) for s in CORPUS["samples"]]
 
+
 @pytest.mark.parametrize("sample", SAMPLES)
 def test_sample(scanner, sample):
     found = scanner.scan(ObservedText(text=sample["text"], source=sample["source"]))
     if not sample["expected_hit"]:
-        assert found == []                                              # 0 findings on every negative (precision)
+        assert found == []  # 0 findings on every negative (precision)
         return
-    assert found                                                        # every positive hits (recall)
-    assert {f.pattern for f in found} & set(sample["expected_patterns"])   # at least one expected pattern
-    assert {f.pattern for f in found} <= set(CORPUS["patterns"])            # vocabulary is closed
-    assert any(sample["expected_quote"] in f.quote or f.quote in sample["expected_quote"] for f in found)
-    assert any(f.mentions_money for f in found) == sample["mentions_money"]  # mentions_money agreement
+    assert found  # every positive hits (recall)
+    assert {f.pattern for f in found} & set(
+        sample["expected_patterns"]
+    )  # at least one expected pattern
+    assert {f.pattern for f in found} <= set(CORPUS["patterns"])  # vocabulary is closed
+    assert any(
+        sample["expected_quote"] in f.quote or f.quote in sample["expected_quote"] for f in found
+    )
+    assert (
+        any(f.mentions_money for f in found) == sample["mentions_money"]
+    )  # mentions_money agreement
     assert all(f.location.startswith(sample["source"]) for f in found)
 ```
 

@@ -91,33 +91,36 @@ exclude_type_checking_imports = true
 [[tool.importlinter.contracts]]
 name = "Build waves: a module imports only earlier waves (siblings never import each other)"
 type = "layers"
+# Layers in parentheses are optional until their wave lands (import-linter optional layers).
 layers = [
-  "nour.cli",
-  "nour.testing",
-  "nour.runtime",
-  "nour.ingress | nour.adapters",
-  "nour.agent | nour.tools",
-  "nour.policy | nour.governance",
-  "nour.audit | nour.auth | nour.vault | nour.records | nour.events",
-  "nour.db | nour.fakes | nour.language",
+  "(nour.cli)",
+  "(nour.testing)",
+  "(nour.runtime)",
+  "(nour.ingress) | (nour.adapters)",
+  "(nour.agent) | (nour.tools)",
+  "(nour.policy) | (nour.governance)",
+  "(nour.audit) | (nour.auth) | (nour.vault) | (nour.records) | (nour.events)",
+  "(nour.db) | (nour.fakes) | (nour.language)",
   "nour.config",
   "nour.core",
 ]
 
-[[tool.importlinter.contracts]]
-name = "Operator wall: code loaded by the Operator desk never imports the vault or owner mailbox"
-type = "forbidden"
-source_modules = ["nour.tools.common", "nour.tools.operator"]
-forbidden_modules = ["nour.vault"]
-
-[[tool.importlinter.contracts]]
-name = "Auditor independence: the auditor never imports the desks, the gate or the loop"
-type = "forbidden"
-source_modules = ["nour.audit.auditor"]
-forbidden_modules = ["nour.agent", "nour.tools", "nour.policy", "nour.governance", "nour.runtime", "nour.vault"]
-
-[[tool.importlinter.contracts]]
-name = "Release tokens are minted only by the gate and the approvals queue"
-type = "forbidden"
-source_modules = ["nour.tools", "nour.records", "nour.vault", "nour.auth", "nour.events", "nour.language"]
-forbidden_modules = ["nour.agent.executor"]
+# The three forbidden-import contracts below are enabled by the lead as soon as every module they
+# name exists (wave 4/5); import-linter cannot reference modules that are not yet on disk.
+# [[tool.importlinter.contracts]]
+# name = "Operator wall: code loaded by the Operator desk never imports the vault or owner mailbox"
+# type = "forbidden"
+# source_modules = ["nour.tools.common", "nour.tools.operator"]
+# forbidden_modules = ["nour.vault"]
+#
+# [[tool.importlinter.contracts]]
+# name = "Auditor independence: the auditor never imports the desks, the gate or the loop"
+# type = "forbidden"
+# source_modules = ["nour.audit.auditor"]
+# forbidden_modules = ["nour.agent", "nour.tools", "nour.policy", "nour.governance", "nour.runtime", "nour.vault"]
+#
+# [[tool.importlinter.contracts]]
+# name = "Release tokens are minted only by the gate and the approvals queue"
+# type = "forbidden"
+# source_modules = ["nour.tools", "nour.records", "nour.vault", "nour.auth", "nour.events", "nour.language"]
+# forbidden_modules = ["nour.agent.executor"]

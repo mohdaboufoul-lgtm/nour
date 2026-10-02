@@ -1,0 +1,287 @@
+# Capability register (SPEC §7), one row per line of the charter table, as data.
+#
+# Fields (nour/config/schema.py Capability):
+#   id          stable identifier used by tests and the definition-of-done check (SPEC §16)
+#   capability  the charter text, verbatim
+#   desk        operator | assistant | both | governance   (DeskScope)
+#   tier        the default tier string exactly as the charter writes it; graduated autonomy
+#               (SPEC §6) moves categories within these rules
+#   phase       build phase that delivers it (0..3)
+#   categories  ActionCategory names this capability introduces. This file is the registry of
+#               every category name: permissions.yaml, spend_tiers.yaml always_K, calendar.yaml
+#               emergency categories and every coat's approval_rules may only name categories
+#               listed here (the loader refuses anything else).
+#   tools       ToolSpec names (DESIGN §3.18) that implement it; routine names the scheduler
+#               timer (DESIGN §3.15) when the capability is a routine rather than a tool.
+#   notes       free text
+#
+# A category's tier comes from the ToolSpec default, spend bands, high-impact and ask-every-time
+# lists and the coat's approval rules (TierResolver, DESIGN §3.16); nothing here lowers a tier.
+
+capabilities:
+  # --- phase 0 -------------------------------------------------------------------------------
+  - id: event_stream
+    capability: Read WhatsApp, email, notifications as an event stream
+    desk: both
+    tier: A
+    phase: 0
+    categories: [phone_read, escalate]
+    tools: [phone.read_notifications, escalate_to_owner]
+    notes: Ingest is the event bus (DESIGN §3.15); phone notifications and escalation are its tools.
+
+  - id: voice_readback
+    capability: Arabic speech-to-text on owner voice notes, read-back before acting
+    desk: assistant
+    tier: A
+    phase: 0
+    categories: [owner_reply]
+    tools: [owner.readback, owner.reply]
+    notes: Voice is never identity (SPEC §6); read-back categories are permissions.readback_categories.
+
+  - id: crm
+    capability: "CRM: contacts, deals, follow-up cadences, do-not-contact list"
+    desk: both
+    tier: A
+    phase: 0
+    categories: [crm_update]
+    tools: [crm.upsert_contact, crm.set_dnc]
+    notes: Partitioned per desk (DESK_ROW); the do-not-contact list is global across coats (SPEC §9).
+
+  - id: ledger
+    capability: "Ledger: every dirham in and out, P&L per experiment and per coat"
+    desk: both
+    tier: A
+    phase: 0
+    categories: [spend_small, money_out, recurring_subscription, customer_refund, new_account]
+    tools: [ledger.spend]
+    notes: Spend bands from spend_tiers.yaml; always_K categories never promote (SPEC §10).
+
+  - id: audit_log
+    capability: Audit log with one-sentence reason per action
+    desk: both
+    tier: A
+    phase: 0
+    categories: []
+    tools: []
+    notes: Cross-cutting; AuditLog.span wraps every dispatch branch (DESIGN §3.11), no tool of its own.
+
+  - id: briefs
+    capability: Morning brief, evening close, approvals queue
+    desk: assistant
+    tier: A
+    phase: 0
+    categories: [owner_notify, task, memory_episodic, memory_semantic, memory_owner_profile, research, draft]
+    tools: [owner.notify, task.create, task.update, memory.write_episodic, memory.propose]
+    routine: morning_brief
+    notes: Routines morning_brief, evening_close, nightly_reflection, weekly_review, notify_sweep (DESIGN §3.18).
+
+  - id: governance
+    capability: Kill switch, watchdog, auditor agent
+    desk: governance
+    tier: A
+    phase: 0
+    categories:
+      - kill_switch_release
+      - constitution_change
+      - deputy_activation
+      - autonomy_change
+      - instruction_found_in_observed_content
+      - active_fraud_attempt
+      - payment_failure
+      - legal_deadline_within_24h
+      - customer_safety_issue
+      - system_compromise
+    tools: []
+    routine: auditor_run
+    notes: Second-channel categories (permissions.second_channel_required) and the quiet-hours emergency categories (calendar.yaml) live here.
+
+  # --- phase 1 -------------------------------------------------------------------------------
+  - id: email_triage
+    capability: Email triage into four buckets; replies in approved categories
+    desk: assistant
+    tier: A after promotion, K before
+    phase: 1
+    categories: [send_in_owner_name, owner_personal_data_outside_tier1_routine]
+    tools: [mailbox.owner.draft, mailbox.owner.send]
+
+  - id: calendar
+    capability: "Calendar ownership: buffers, prep briefs, focus blocks"
+    desk: assistant
+    tier: N
+    phase: 1
+    categories: [scheduling]
+    tools: []
+
+  - id: documents
+    capability: "Document production: quotes, invoices, proposals, contracts from templates"
+    desk: both
+    tier: A to draft, K to send
+    phase: 1
+    categories: [document_render, contract_terms_outside_mandate]
+    tools: [vault.render_document]
+
+  - id: vault
+    capability: "Vault: store, index, retrieve, share with approval; expiry engine"
+    desk: assistant
+    tier: K to share
+    phase: 1
+    categories: [vault_retrieval, document_sharing, vault_document_share]
+    tools: [vault.search_meta, vault.retrieve, vault.share]
+
+  - id: renewals
+    capability: Renewals and deadlines engine (licences, visas, insurance, registrations)
+    desk: assistant
+    tier: N
+    phase: 1
+    categories: [renewal]
+    tools: []
+
+  - id: email_outreach
+    capability: Outbound email outreach with rate limits
+    desk: operator
+    tier: A within caps
+    phase: 1
+    categories: [customer_reply, supplier_inquiry]
+    tools: [send_email]
+
+  - id: whatsapp_conversations
+    capability: WhatsApp conversations (warm and replies; never cold mass)
+    desk: both
+    tier: A within caps
+    phase: 1
+    categories: [customer_reply]
+    tools: [reply_whatsapp]
+    notes: reply_whatsapp is registered from phase 0 (DESIGN §3.18 register_common); caps in channels.yaml.
+
+  - id: voice_calls
+    capability: AI voice calls, outbound and inbound answering, transcripts
+    desk: operator
+    tier: N
+    phase: 1
+    categories: [voice_call]
+    tools: []
+
+  - id: experiments
+    capability: Experiment log, nightly reflection, weekly KPI review
+    desk: operator
+    tier: A
+    phase: 1
+    categories: [experiment, publishing]
+    tools: []
+    routine: nightly_reflection
+
+  # --- phase 2 -------------------------------------------------------------------------------
+  - id: task_board
+    capability: Task board across personal, companies and Operator, with chasing
+    desk: assistant
+    tier: A
+    phase: 2
+    categories: [gate_handoff]
+    tools: [handoff.to_operator]
+    notes: handoff.to_operator is the one-way gate (DESIGN §3.16); gate_handoff starts at K.
+
+  - id: staff_interface
+    capability: "Staff interface: per-company request line, report collection"
+    desk: assistant
+    tier: A to request, K for money
+    phase: 2
+    categories: [staff_request]
+    tools: []
+
+  - id: logistics
+    capability: "Logistics: bookings, reservations, deliveries, errands"
+    desk: assistant
+    tier: A under spend tier
+    phase: 2
+    categories: [logistics]
+    tools: []
+
+  - id: banking_details
+    capability: Receiving bank details on invoices; beneficiary registry
+    desk: both
+    tier: A for invoices, K for new beneficiaries
+    phase: 2
+    categories: [new_beneficiary, beneficiary_change]
+    tools: [beneficiary.propose_change]
+    notes: propose_change never mutates the registry; a callback to the number on file comes first (SPEC §10).
+
+  - id: payment_prep
+    capability: Payment preparation (maker role); owner releases (checker)
+    desk: assistant
+    tier: K
+    phase: 2
+    categories: [payment_prepare, payment_above_notify_band]
+    tools: [payment.prepare]
+
+  - id: bank_feed
+    capability: Read-only bank feed; reconciliation and invoice chasing
+    desk: assistant
+    tier: A to read, N to chase
+    phase: 2
+    categories: [bank_read, invoice_chase]
+    tools: []
+
+  # --- phase 3 -------------------------------------------------------------------------------
+  - id: app_control
+    capability: App control on the phone via Android accessibility and ADB
+    desk: operator
+    tier: N
+    phase: 3
+    categories: [app_control]
+    tools: [phone.open_app]
+
+  - id: sandbox
+    capability: "Code sandbox: scrapers, landing pages, scripts"
+    desk: operator
+    tier: A within sandbox
+    phase: 3
+    categories: [sandbox]
+    tools: [sandbox.run]
+
+  - id: freelancers
+    capability: Freelancer delegation (design, deliveries, data entry)
+    desk: operator
+    tier: K above spend tier
+    phase: 3
+    categories: [freelancer]
+    tools: []
+
+  - id: ad_spend
+    capability: Ad spend with kill rules
+    desk: operator
+    tier: N within cap, K above
+    phase: 3
+    categories: [ad_spend]
+    tools: [ads.set_budget]
+
+  - id: subagents
+    capability: Sub-agents (research, sales, ops) with their own budgets and kill switches
+    desk: operator
+    tier: K to create
+    phase: 3
+    categories: [subagent_create]
+    tools: []
+
+  - id: external_ai
+    capability: "External AI models: image (face lock), voice, video, within the AI budget line"
+    desk: both
+    tier: A within cap
+    phase: 3
+    categories: [external_ai]
+    tools: []
+
+  - id: watchlists
+    capability: "Watchlists: regulation, tenders, competitors, key prices"
+    desk: assistant
+    tier: A to monitor, surfaced in brief
+    phase: 3
+    categories: [watchlist]
+    tools: []
+
+  - id: camera
+    capability: Camera and OCR, location
+    desk: operator
+    tier: A
+    phase: 3
+    categories: [camera]
+    tools: []

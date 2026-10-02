@@ -59,7 +59,9 @@ def h(tmp_path_factory: pytest.TempPathFactory) -> Any:
 @pytest.fixture(scope="module")
 def weekly_scenarios() -> dict[str, str]:
     """File name → source text of every ``tests/scenarios/test_*.py`` that carries ``@pytest.mark.weekly``."""
-    sources = {f.name: f.read_text(encoding="utf-8") for f in sorted(SCENARIOS_DIR.glob("test_*.py"))}
+    sources = {
+        f.name: f.read_text(encoding="utf-8") for f in sorted(SCENARIOS_DIR.glob("test_*.py"))
+    }
     return {name: text for name, text in sources.items() if WEEKLY_MARKER in text}
 
 
@@ -144,9 +146,13 @@ def test_phase_0_capabilities_are_done(h: Any, weekly_scenarios: dict[str, str])
                     problems.append(f"{row.id}: tool {tool!r} is not registered for {row.desk}")
                     continue
                 if spec.phase != 0 or spec.handler is None:
-                    problems.append(f"{row.id}: tool {tool!r} is registered as a phase {spec.phase} stub")
+                    problems.append(
+                        f"{row.id}: tool {tool!r} is registered as a phase {spec.phase} stub"
+                    )
                 if spec.category not in known_categories:
-                    problems.append(f"{row.id}: tool {tool!r} logs category {spec.category!r} unknown to the config")
+                    problems.append(
+                        f"{row.id}: tool {tool!r} logs category {spec.category!r} unknown to the config"
+                    )
         if row.desk == DeskScope.GOVERNANCE and row.tools and not row.routine:
             problems.append(f"{row.id}: a governance row needs a routine, it has no tool registry")
         if row.routine and not _routine_registered(h, row.routine):
@@ -171,11 +177,17 @@ def test_later_phase_capabilities_are_stubs(h: Any) -> None:
             for tool in row.tools:
                 spec = _spec(registry, tool)
                 if spec is None:
-                    problems.append(f"{row.id}: phase {row.phase} tool {tool!r} has no stub registered for {row.desk}")
+                    problems.append(
+                        f"{row.id}: phase {row.phase} tool {tool!r} has no stub registered for {row.desk}"
+                    )
                     continue
                 if spec.phase != row.phase:
-                    problems.append(f"{row.id}: stub {tool!r} says phase {spec.phase}, the register says {row.phase}")
+                    problems.append(
+                        f"{row.id}: stub {tool!r} says phase {spec.phase}, the register says {row.phase}"
+                    )
                 if spec.handler is not None and not _raises_not_in_phase(spec.handler):
-                    problems.append(f"{row.id}: {tool!r} has a live handler in phase 0 instead of a NotInPhase stub")
+                    problems.append(
+                        f"{row.id}: {tool!r} has a live handler in phase 0 instead of a NotInPhase stub"
+                    )
 
     assert not problems, "\n".join(problems)

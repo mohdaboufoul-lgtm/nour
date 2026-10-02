@@ -46,6 +46,7 @@ the intent (`question`, `task_create`), and the registry never changes without t
 CORPUS = yaml.safe_load(open("tests/fixtures/arabic_commands.yaml"))
 CASES = [pytest.param(c, id=c["id"]) for c in CORPUS["commands"]]
 
+
 @pytest.mark.parametrize("case", CASES)
 def test_intent(parser, case):
     assert parser.parse(case["text"], channel=case["channel"]).intent == case["intent"]

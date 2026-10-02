@@ -6,7 +6,7 @@
 #   postgres   the tests marked `postgres` against a real postgres:16 service
 #   regression the fixed scenarios in tests/scenarios (every push / PR, and weekly)
 #
-# No secrets are needed by any job: the suite runs with NOUR_SECRETS_BACKEND=env,
+# No secrets are needed by any job: the suite runs with NOUR_SECRETS_BACKEND=fake,
 # a fake card issuer and dry-run on. Live channels are never touched from CI.
 name: ci
 
@@ -33,7 +33,7 @@ env:
   NOUR_ENV: test
   NOUR_DRY_RUN: "true"      # SPEC §8 dry-run mode: no sends, no spend
   NOUR_TIMEZONE: Asia/Dubai
-  NOUR_SECRETS_BACKEND: env
+  NOUR_SECRETS_BACKEND: fake
   NOUR_CARD_ISSUER: fake
   NOUR_VAULT_STORAGE: local
   NOUR_REGION: me-central-1

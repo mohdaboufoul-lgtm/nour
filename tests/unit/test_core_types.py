@@ -355,7 +355,15 @@ class TestMoney:
             Money(fils="12.5")  # type: ignore[arg-type]
         with pytest.raises(ValidationError):
             Money(fils=1.5)  # type: ignore[arg-type]
-        assert Money(fils="1200").fils == 1200  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):  # strict: a numeric string is not an amount
+            Money(fils="1200")  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):  # strict: True is not one fils
+            Money(fils=True)
+        with pytest.raises(ValidationError):
+            Money.model_validate({"fils": False, "currency": "AED"})
+        assert Money(fils=1200).fils == 1200
+        assert Money.model_validate({"fils": 1200, "currency": "AED"}).fils == 1200
+        assert Money.model_validate_json('{"fils": 1200, "currency": "AED"}').fils == 1200
 
     def test_str_shows_major_units(self) -> None:
         assert str(Money.aed("1234.5")) == "AED 1,234.50"
@@ -414,6 +422,12 @@ class TestReason:
             ("x" * 241, "long"),
             ("Paid the supplier\nthen logged it", "one line"),
             ("Paid the supplier\r\nthen logged it", "one line"),
+            ("Paid the supplier\u2028then logged it", "one line"),  # line separator
+            ("Paid the supplier\u2029then logged it", "one line"),  # paragraph separator
+            ("Paid the supplier\x85then logged it", "one line"),  # NEL
+            ("Paid the supplier\x0bthen logged it", "one line"),  # vertical tab
+            ("Paid the supplier\x0cthen logged it", "one line"),  # form feed
+            ("Paid the supplier\x1ethen logged it", "one line"),  # record separator
             ("Paid the supplier. Then logged it", "one sentence"),
             ("Paid the supplier. Then logged it.", "one sentence"),
             ("Done!!", "one sentence"),
@@ -463,6 +477,11 @@ class TestReason:
         else:
             assert result == expected
             assert isinstance(result, Reason)
+
+    def test_coerce_cuts_at_any_line_break(self) -> None:
+        for sep in ("\n", "\r\n", "\u2028", "\u2029", "\x85", "\x0b", "\x0c"):
+            assert Reason.coerce(f"Paid the supplier{sep}then logged it.") == "Paid the supplier"
+        assert Reason.coerce("Paid. Then\u2028logged") == "Paid."
 
     def test_coerce_raises_when_first_sentence_is_still_bad(self) -> None:
         with pytest.raises(ReasonError):
