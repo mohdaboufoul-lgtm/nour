@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Outbound only, TLS only (phone.md §1.4). Cleartext is refused everywhere.
+     Once the ingress certificate is issued, pin its SPKI (plus one backup pin) in a domain-config;
+     until then the system trust store applies inside the WireGuard tunnel. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!--
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">ingress.nour.internal</domain>
+        <pin-set expiration="2027-12-31">
+            <pin digest="SHA-256">REPLACE_WITH_LEAF_OR_CA_SPKI_BASE64=</pin>
+            <pin digest="SHA-256">REPLACE_WITH_BACKUP_SPKI_BASE64=</pin>
+        </pin-set>
+    </domain-config>
+    -->
+</network-security-config>

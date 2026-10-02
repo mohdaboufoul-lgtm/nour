@@ -1,0 +1,11 @@
+# Android / Gradle local state (the wrapper jar and gradlew scripts are generated, see README)
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+# Signing material never lives in the repo (SPEC §13 token leakage)
+*.jks
+*.keystore
+keystore.properties

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nour body</string>
+    <string name="listener_label">Nour notification forwarder</string>
+    <string name="fgs_channel">Nour body service</string>
+    <string name="fgs_title">Nour body is running</string>
+    <string name="fgs_text">Forwarding notifications to the brain</string>
+
+    <string name="hint_pairing">Pairing code from the control panel (nour://pair?…)</string>
+    <string name="hint_ingress">Ingress base URL (https://host[:port])</string>
+    <string name="hint_token">Device token</string>
+    <string name="btn_save">Save and start</string>
+    <string name="btn_notification_access">Grant notification access</string>
+    <string name="btn_battery">Request battery exemption</string>
+    <string name="btn_unpair">Unpair (forget token, purge queue)</string>
+    <string name="status_loading">…</string>
+</resources>
