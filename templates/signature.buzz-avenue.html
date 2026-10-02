@@ -1,0 +1,51 @@
+<!--
+  templates/signature.buzz-avenue.html  (SPEC §3, §13; coat identity.signature_ref)
+  Bilingual email signature for Nour under the Buzz Avenue coat. The renderer fills the
+  placeholders from config/coats/buzz-avenue.yaml:
+    {{ coat.name }}                        Buzz Avenue
+    {{ coat.identity.email }}              nour@<company-domain>
+    {{ coat.identity.whatsapp_line }}      <business-line-number>, display form
+    {{ coat.identity.whatsapp_link }}      wa.me link the renderer derives from the line
+    {{ coat.identity.verification_page }}  https://<company-domain>/nour
+    {{ coat.address_short }}               city and emirate only, e.g. Dubai, UAE
+  Rules: inline CSS only; no images, fonts or external assets (the approved face lives on the
+  WhatsApp Business profile, not in mail). Full block on first contact, which carries the
+  disclosure line (SPEC §3); the short form from the tone guide afterwards. No bank details,
+  no personal names. The consumer opt-out line is appended by the mailer, not by this block.
+-->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#1f2a30;border-collapse:collapse;max-width:560px;">
+  <tr>
+    <td style="padding:0 0 10px 0;border-top:3px solid #0f6b6b;font-size:0;line-height:0;">&nbsp;</td>
+  </tr>
+  <tr>
+    <!-- English block, left to right -->
+    <td dir="ltr" style="padding:0 0 12px 0;">
+      <div style="font-size:15px;font-weight:bold;color:#0f6b6b;">Nour</div>
+      <div>{{ coat.name }} AI assistant</div>
+      <div><a href="mailto:{{ coat.identity.email }}" style="color:#0f6b6b;text-decoration:none;">{{ coat.identity.email }}</a></div>
+      <div>WhatsApp: <a href="{{ coat.identity.whatsapp_link }}" style="color:#0f6b6b;text-decoration:none;">{{ coat.identity.whatsapp_line }}</a></div>
+      <div style="color:#5a6670;font-size:12px;margin-top:6px;">
+        I'm Nour, the AI assistant at {{ coat.name }}. I never ask for payment to a new account.
+        Verify this message: <a href="{{ coat.identity.verification_page }}" style="color:#0f6b6b;">{{ coat.identity.verification_page }}</a>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <!-- Arabic block, right to left -->
+    <td dir="rtl" lang="ar" style="padding:0 0 12px 0;text-align:right;">
+      <div style="font-size:15px;font-weight:bold;color:#0f6b6b;">نور</div>
+      <div>المساعدة الذكية في {{ coat.name }}</div>
+      <div><a href="mailto:{{ coat.identity.email }}" dir="ltr" style="color:#0f6b6b;text-decoration:none;unicode-bidi:embed;">{{ coat.identity.email }}</a></div>
+      <div>واتساب: <a href="{{ coat.identity.whatsapp_link }}" dir="ltr" style="color:#0f6b6b;text-decoration:none;unicode-bidi:embed;">{{ coat.identity.whatsapp_line }}</a></div>
+      <div style="color:#5a6670;font-size:12px;margin-top:6px;">
+        أنا نور، المساعدة الذكية في {{ coat.name }}. لا أطلب أبداً الدفع إلى حساب جديد.
+        للتحقق من هذه الرسالة: <a href="{{ coat.identity.verification_page }}" dir="ltr" style="color:#0f6b6b;unicode-bidi:embed;">{{ coat.identity.verification_page }}</a>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0 0 0;border-top:1px solid #d9e0e3;color:#8a949b;font-size:11px;">
+      {{ coat.name }} &middot; {{ coat.address_short }} &middot; <a href="{{ coat.identity.verification_page }}" style="color:#8a949b;">Verification page / صفحة التحقق</a>
+    </td>
+  </tr>
+</table>
