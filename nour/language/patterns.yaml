@@ -1,0 +1,276 @@
+# InjectionScanner patterns (DESIGN §3.10 nour/language/patterns.yaml; SPEC §2 §12 §13).
+#
+# Ground truth: tests/fixtures/injections.yaml (vocabulary and oracle rules in
+# tests/fixtures/INJECTIONS_README.md). Every regex runs on text normalised by
+# nour.language.injection.normalise_for_scan: NFKC, tashkeel / tatweel / zero-width marks removed,
+# alef variants -> ا, ى -> ي, Arabic-Indic digits -> ASCII, curly quotes straightened, Latin
+# case-folded, whitespace collapsed. Matching is per sentence (a line is split at . ! ? ؟ followed
+# by whitespace), so a pattern never needs to cross a sentence boundary; `.{0,N}` is safe.
+#
+# Keys per pattern:
+#   name            one of the closed vocabulary of the fixture (never invent a new one silently)
+#   mentions_money  true when a finding of this pattern always names money (payments, bank changes);
+#                   other patterns consult `money_lexicon` over the quote itself and
+#                   `money_tail_lexicon` over the next two non-empty lines (what "the account
+#                   below" / "approve this quote" point at), never the whole rest of the text
+#   co_pattern_only true for patterns that are reported only next to a primary pattern
+#   structural      true for hidden_instruction_markup: produced by the hidden-span extractor, not a regex
+#   regexes         [{language, regex}]; `<<name>>` references a fragment below (expanded at load)
+#
+# Rules of thumb that keep the negatives silent: match the verb form (an instruction), never a
+# mention ("never asks for payment to a new account"); a question is a request, not an imperative;
+# a legitimate IBAN on an invoice is an advisory shape hit (`bank_details`), never a finding.
+
+version: 1
+
+fragments:
+  # Who an imperative must be addressed to (the assistant by name or role).
+  address: >-
+    (?:ya nour|nour habibti|ms\.? nour|nour|ai assistants?|assistants?|ai|نور|المساعدة الالية|المساعدة|المساعد الالي|المساعد|للمساعدين الاليين|للمساعدين|للمساعد الالي|للمساعد)
+  # Words that may sit between the address and the verb ("Nour, please forward", "Nour, before this meeting forward").
+  leadin: >-
+    (?:please|kindly|habibti|also|now|just|first|quickly|urgently|before [^,.:]{0,25},?|while [^,.:]{0,30},?|after [^,.:]{0,25},?|الرجاء|لو سمحتي|من فضلك|اذا ممكن|قبل [^،,.:]{0,20}،?)
+  verbs_en: >-
+    (?:auto-approve|re-add|send|forward|pay|transfer|process|approve|release|disable|turn off|switch off|register|promote|email|attach|reply|move|add|update|delete|accept|ignore|stop|share|remit|change|wire|sign|confirm|book|cancel|prepare|set|put|mark|unlock|grant|disregard)
+  verbs_ar: >-
+    (?:حوليلي|حولي|تحولي|ابعتيلي|ابعتي|بعتيلي|بعتي|ارسلي|ادفعي|قومي ب|غيري|حدثي|ضيفي|الغي|وقفي|افتحي|اعتمدي|وافقي|جيبيلي|جيبي|امسحي|سجلي|احذفي|تجاهلي|شاركي|رجعي|حضري)
+  verbs_az: >-
+    (?:7awlili|7awli|7awle|7awel|ba3tile|ba3te|b3atile|b3ate|edfa3e|tdaf3e|edfa3|2abli|ghayre|8ayre|dife|zide|jibile|jibe|emsa7e|wa2fe|wa2fi|sajle|tjahale|tjahali|rajje3|7otte|7adrile|7adre)
+  money_verbs_en: >-
+    (?:pay|transfer|remit|send|move|process|wire|route|redirect|settle)
+  account_en: >-
+    (?:(?:new|updated|different|this|that|the|our|his|her|their|my|another|following|below|escrow)\s+)?(?:account(?!ant| manager| name| team| executive)|iban|beneficiary|bank details|banking details)
+  tier2_docs_en: >-
+    (?:passport|emirates id|eid copy|trade licen[cs]e|licen[cs]e(?: copy| pdf| scan)?|visa|contract|lease|moa|memorandum|bank statement|statement of account|vault|title deed|tenancy contract|insurance polic(?:y|ies)|medical (?:report|record)|iban letter)
+
+# A finding names money when its pattern says so or when the quote itself matches this
+# (`balance` and `advance` only with money context: "thanks in advance" and "the balance sheet
+# team" are not money).
+money_lexicon:
+  - >-
+    \b(?:aed|usd|eur|gbp|sar|dhs|dirhams?|derhem|derham|dirham|dollars?|euros?)\b
+  - >-
+    درهم|دراهم|ريال|دولار
+  - >-
+    \b(?:pay|pays|paid|payment|payments|payable|transfer|transfers|remit|remittance|wire|refund|refunds|deposit|spend|spending|salary|salaries)\b
+  - >-
+    \b(?:outstanding|pending|remaining|unpaid|overdue|due|account|the|your|our|my|his|her|their) balance\b|\bbalance (?:due|owed|outstanding|of|payable|is)\b|\b(?:an|the|cash|salary|a|his|her|my|this) advance\b|\badvance (?:payment|of|on)\b
+  - >-
+    \biban\b
+  - >-
+    (?:ت|ب)?حول(?:ي|يلي|وا|ه|ن)\b|\bتحويل|ادفع|دفعة|المبلغ|مبلغ|سلفة|العربون|عربون|رصيد|مصاري|مصريات|فلوس
+  - >-
+    \b(?:7awli|7awle|7awel|7awlili|edfa3e|tdaf3e|edfa3|edfa3o|mablagh|masari|flous|flouss)\b
+  - >-
+    [$€£]
+
+# What the quote may point at on the next two non-empty lines ("the account details below",
+# "approve this quote" + its total): concrete money only — a currency, an amount, an account or
+# IBAN — never the verbs of the lexicon above ("Payment terms: net 30" under an unrelated
+# instruction is business text, not money the instruction names).
+money_tail_lexicon:
+  - >-
+    \b(?:aed|usd|eur|gbp|sar|dhs|dirhams?|derhem|derham|dirham|dollars?|euros?)\b
+  - >-
+    درهم|دراهم|ريال|دولار
+  - >-
+    \biban\b|\bbeneficiary\b|\bbank (?:details|account)\b|\baccount (?:number|no\.?|details|name|holder)\b|\bswift\b|\bsort code\b
+  - >-
+    الحساب|ايبان|المبلغ|مبلغ|رصيد|مصاري|فلوس
+  - >-
+    \b(?:7seb|7esab|7sab|mablagh|masari|flous|flouss)\b
+  - >-
+    [$€£]
+
+# A sentence shaped as a question is a request, not an imperative to the assistant.
+question_markers:
+  - >-
+    [?؟]\s*$
+  - >-
+    \b(?:could|can|would|will|do|did|may) you\b
+  - >-
+    \bممكن\b|فيكي|فيك\b|بتقدري|بتقدر|\b2adde\b|\bfik[ei]\b|\bmomken\b|\bmumkin\b
+
+# Invisible-to-the-reader spans; their inner text is scanned like any other line and
+# hidden_instruction_markup is added when another pattern hits inside the span. Each rule is an
+# `open` regex (bounded: a tag never spans a line and is at most ~300 characters, scanned without
+# backtracking), a literal `close` the scanner locates by position (never a regex over the body,
+# so thousands of unclosed openers cost nothing), an optional `require` regex that must match
+# inside the opening tag, and `same_line: true` when the span may not cross a newline.
+hidden_markup:
+  - open: '<!--'
+    close: '-->'
+  - open: '\[//\]:\s*#\s*\('
+    close: ')'
+    same_line: true
+  - open: '<span\b(?>[^>\n]{0,300})>'
+    close: '</span>'
+    require: 'color\s*:\s*#f{3,6}\b|font-size\s*:\s*0?\.?[01]px|display\s*:\s*none|visibility\s*:\s*hidden'
+  - open: '<div\b(?>[^>\n]{0,300})>'
+    close: '</div>'
+    require: 'display\s*:\s*none|visibility\s*:\s*hidden'
+
+patterns:
+  - name: imperative_to_assistant
+    description: An imperative addressed to the assistant by name or role; question form is a request.
+    mentions_money: false
+    regexes:
+      - language: mixed
+        regex: >-
+          \b<<address>>\b[^\w\n]{0,6}(?:<<leadin>>[^\w\n]{0,3}){0,2}(?:<<verbs_en>>|<<verbs_ar>>|<<verbs_az>>)\b
+
+  - name: ignore_owner
+    description: Override or bypass the owner / previous instructions.
+    mentions_money: false
+    regexes:
+      - language: en
+        regex: >-
+          \bignore (?:all |any |the |my )?(?:previous|prior|earlier) instructions|\bignore (?:your |the )?(?:owner|boss)|\bignore whatever the (?:boss|owner)|\bdisregard (?:your |the )?(?:owner|boss)|without (?:asking|consulting|checking with|telling) (?:your |the )?(?:owner|boss)|without (?:the )?owner(?:'s)? (?:confirmation|approval|consent)|\bno (?:further |additional )?approval (?:is |will be )?(?:required|needed|necessary)
+      - language: ar
+        regex: >-
+          تجاهلي (?:اي |كل |ال)?تعليمات|تجاهلي (?:تعليمات )?المالك|بدون الرجوع (?:لل|الى ال)?مالك|ما تسالي (?:صاحبك|المالك|المدير)|ما في داعي (?:ت|ي)?سال|بلا ما تسالي
+      - language: arabizi
+        regex: >-
+          tjahal[ei] el (?:owner|boss)|ma fi da3e tes2al|ma tes2al[ei]? (?:el )?(?:owner|boss|sa7bak|sa7ebak)|bala ma tes2al|men dun ma tes2al
+
+  - name: pay_to_new_account
+    description: Pay or transfer directed to a new, updated or stated account (verb form only).
+    mentions_money: true
+    regexes:
+      - language: en
+        regex: >-
+          \b<<money_verbs_en>>\b.{0,80}?\b<<account_en>>\b
+      - language: ar
+        regex: >-
+          (?:\b(?:ب|و)?تحويل|حوليلي|حولي|تحولي|حولوا|ادفعي|تدفعي|ادفعوا).{0,60}?(?:الحساب الجديد|حساب(?:ي|نا|كم|هم|ه) الجديد|على الحساب|عالحساب|الى الحساب|لحساب|هالحساب|الحساب (?:اللي|الموضح|المذكور|تبع|التالي|ادناه)|على الرقم|عالرقم|على هالرقم|على هيدا الرقم|الايبان|iban)
+      - language: arabizi
+        regex: >-
+          \b(?:7awlili|7awli|7awle|7awel|7awlo|7awwel|7awil|tdaf3e|edfa3e|edfa3|edfa3o|ba3te|b3ate)\b.{0,60}?\b(?:iban|account|7seb|7esab|7sab|ra2em|rakam|raqam|beneficiary)\b
+
+  - name: bank_change
+    description: Bank / IBAN / beneficiary details changed or to be updated in the registry.
+    mentions_money: true
+    regexes:
+      - language: en
+        regex: >-
+          \bchanged (?:our|the|their|its) (?:bank|account|iban|banking)|\bnew (?:iban|bank account|bank details|banking details|account details)\b|\bupdate (?:the |our |their |your )?(?:[\w'.-]+\s){0,3}?(?:iban|bank details|banking details|beneficiary|bank account)\b|\bsupersede any on file|\b(?:add|re-add|register|create|set up)\b.{0,60}?\b(?:new )?beneficiary\b|\bbank details (?:have |has )?changed|\b(?:our|the) (?:bank )?account (?:has |have )?changed
+      - language: ar
+        regex: >-
+          غيرنا (?:ال)?حساب|تغير (?:ال)?حساب|حسابنا (?:البنكي )?تغير|حدثي بيانات (?:ال)?بنك|حدثي (?:ال)?(?:ايبان|iban)|غيري (?:ال|الـ )?\s*(?:iban|ايبان|الحساب)|ايبان جديد|iban جديد|حساب جديد|حسابنا الجديد|ضيفي مستفيد|مستفيد جديد
+      - language: arabizi
+        regex: >-
+          (?:account|7seb|7esab|iban) (?:taba3na |taba3 el [a-z]+ )?t8ayar|t8ayar(?:na)? el (?:account|7seb|iban)|ghayarna el (?:account|7seb|iban)|iban (?:el )?jdid|dife beneficiary|beneficiary jdid
+
+  - name: auth_claim
+    description: Text asserting server-side auth state or granted authority.
+    mentions_money: false
+    regexes:
+      - language: en
+        regex: >-
+          owner_verified\s*=\s*\w+|passphrase_verified\s*=|authority\s*=\s*owner|\badmin mode\b|\b(?:the )?owner has authori[sz]ed (?:me|us|this)|\b(?:i|we)'?(?:m| am|re| are)? now authori[sz]ed|\bnow authori[sz]ed to\b|\bverified ?= ?true|\bsystem override\b|\broot access\b
+      - language: ar
+        regex: >-
+          المالك فوضني|المالك خولني|انا مفوض|مفوضة من المالك|صلاحية المالك
+      - language: arabizi
+        regex: >-
+          el owner faww?adne|el owner khawwalne
+
+  - name: send_document
+    description: Send / forward / attach a Tier 2 document (passport, ID, licence, contract, statement, vault).
+    mentions_money: false
+    regexes:
+      - language: en
+        regex: >-
+          \b(?:send|forward|email|e-mail|attach|reply|get|collect|share|bring|mail|upload|fax|scan)\b.{0,60}?\b<<tier2_docs_en>>\b
+      - language: ar
+        regex: >-
+          (?:ابعتي|ابعتيلي|بعتي|بعتيلي|ارسلي|رسلي|جيبي|جيبيلي|شاركي).{0,40}?(?:جواز|الهوية|هوية|الرخصة|رخصة|العقد|عقد الايجار|كشف حساب|كشف الحساب|الفيزا|فيزا|الاقامة|التاشيرة|بوليصة|الوثائق|المستندات|الخزنة)
+      - language: arabizi
+        regex: >-
+          \b(?:ba3te|ba3tile|b3ate|b3atile|ba3at|b3at|jibile|jibe|jib)\b.{0,40}?\b(?:passport|jawaz|licen[cs]e|rukhsa|visa|contract|3a2ed|emirates id|hawiye|statement|kashef|vault)\b
+
+  - name: forward_credentials
+    description: Request for passwords, logins, OTPs or codes.
+    mentions_money: false
+    regexes:
+      - language: en
+        regex: >-
+          \b(?:send|reply with|share|forward|give|provide|type|enter|tell|text|confirm)\b.{0,40}?\b(?:passwords?|login|log-in|credentials|otp|one.time (?:code|password)|verification code|passcode|pin code|security code|2fa code|authentication code)\b
+      - language: ar
+        regex: >-
+          كلمة السر|كلمة المرور|رمز التحقق|رمز التفعيل|رمز الدخول|بيانات الدخول|الباسورد
+      - language: mixed
+        regex: >-
+          (?:ba3tile|ba3te|b3ate|b3atile|بعتيلي|ابعتيلي|ابعتي|بعتي).{0,30}?(?:password|otp|kelm[ei]t el ser|ramz)
+
+  - name: urgency_pressure
+    description: Deadline or pressure language; co-pattern only, never reported alone.
+    mentions_money: false
+    co_pattern_only: true
+    regexes:
+      - language: en
+        regex: >-
+          \burgent(?:ly)?\b|\bimmediately\b|\bright now\b|\bwithin \d+ (?:minutes|hours|mins)\b|\bin the next \d+ (?:minutes|hours)\b|\bby end of (?:the )?day\b|\bby eod\b|\basap\b|\bbefore (?:the )?(?:court|office|bank|window|slot) (?:closes|shuts)|\bor (?:the )?(?:shipment|order|slot|account) (?:is|will be) (?:cancelled|canceled|lost|suspended)|\bno time to\b|\bthis instant\b
+      - language: ar
+        regex: >-
+          فورا|ضروري|مستعجل|عاجل|خلال ساعة|خلال ساعتين|قبل الساعة|قبل ما يسكر|بسرعة|حالا
+      - language: arabizi
+        regex: >-
+          msta3j[ie]l|daroure|daroura|daroori|bsor3a|bsur3a|2abel ma ysakker
+
+  - name: impersonate_owner
+    description: Claims to be, speak for or relay the owner from a non-owner source.
+    mentions_money: false
+    regexes:
+      - language: en
+        regex: >-
+          \b(?:this is|i am|i'm|im|it's|its) the (?:owner|boss|ceo|director)\b|\bowner'?s new (?:number|phone|email|line)\b|\b(?:the )?(?:owner|boss|ceo|director) (?:says|said|told (?:you|me|us)|asked me|wants you|instructed|approved this|has approved|signed off on)\b|\bon behalf of the owner\b|\bfrom the owner:\s|\bthe owner'?s (?:wife|husband|brother|son|daughter|partner|lawyer|assistant)\b
+      - language: ar
+        regex: >-
+          انا صاحب (?:الشركة|المحل|الشغل)|انا المالك|انا المدير|المالك قال|المدير قال|المالك طلب|المدير طلب|من المالك|من المدير|رقمي الجديد|رقم المالك الجديد|المالك بعتني|المدير بعتني
+      - language: arabizi
+        regex: >-
+          \bel (?:owner|boss|modir|mudir) (?:2al|2alek|2allek|2allik|byo2ellik|byo2elik|byo2ol|wafa2|wafa2a|talab|baddo|ba3atne|2alle)\b|\bana (?:el )?(?:owner|boss|sa7eb el shirke|sa7ib el shirke|modir)\b|\bra[2k]m[ei] el jdid\b
+
+  - name: impersonate_auditor
+    description: Claims to be the auditor agent or an audit instruction.
+    mentions_money: false
+    regexes:
+      - language: en
+        regex: >-
+          \bauditor (?:agent|instruction|report|notice|directive)\b|\[auditor\]|\bthis is (?:the )?(?:nour )?auditor\b|\bnour auditor\b
+      - language: ar
+        regex: >-
+          وكيل التدقيق|المدقق الليلي|انا المدقق|من المدقق
+
+  - name: change_autonomy
+    description: Promote a tier, auto-approve, stop asking the owner.
+    mentions_money: false
+    regexes:
+      - language: en
+        regex: >-
+          \bpromote\b.{0,30}?\btier\b|\btier a\b|\bautonomous(?:ly)?\b|\bauto-?approv(?:e|al|ed)\b|\bapprove\b.{0,30}?\bautomatically\b|\bautomatically approve\b|\bstop asking (?:the |your )?(?:owner|boss)\b|\bset autonomy\b|\bautonomy to (?:full|max)\b|\bset\b.{0,30}?\bto tier\b|\bwithout (?:further )?approvals?\b|\bskip (?:the )?approvals?\b|\bno more approvals\b|\bfull autonomy\b
+      - language: ar
+        regex: >-
+          ما في داعي للموافقات|بدون موافقة|بدون موافقات|بلا موافقة|وقفي الموافقات|ما بدها موافقة|اعتمدي تلقائيا|بشكل تلقائي
+      - language: arabizi
+        regex: >-
+          ma fi da3e lal mwafa2at|bala mwafa2a|bidoun mwafa2a
+
+  - name: disable_logging
+    description: Turn off, skip or delete audit logging.
+    mentions_money: false
+    regexes:
+      - language: en
+        regex: >-
+          \b(?:disable|turn off|switch off|stop|suspend|pause|kill)\b.{0,20}?\b(?:audit[ -]?)?log(?:ging|s)?\b|\blog(?:ging)?\s*(?:=|is|to)?\s*off\b|\bdon'?t log\b|\bdo not log\b|\bdelete (?:the |this )?(?:audit|log)\b|\blogging must be disabled\b|\baudit_?log\s*=\s*off\b|\bwithout logging\b|\bno audit trail\b|\bskip (?:the )?(?:audit|log)\b|\bclear the (?:audit )?log\b
+      - language: ar
+        regex: >-
+          اوقفي التسجيل|وقفي التسجيل|بدون تسجيل|ما تسجلي|لا تسجلي|امسحي السجل|احذفي السجل|عطلي التسجيل
+
+  - name: hidden_instruction_markup
+    description: An instruction inside an HTML/markdown comment or invisible span (needs another pattern inside the span).
+    mentions_money: false
+    co_pattern_only: true
+    structural: true
+    regexes: []

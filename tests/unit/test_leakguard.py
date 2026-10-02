@@ -30,6 +30,7 @@ from nour.core.leakguard import (
     LeakGuard,
     LeakHit,
     ShapeHit,
+    blocking_shape_hits,
     normalise,
     shape_hits,
 )
@@ -582,3 +583,13 @@ def test_safe_mapping_takes_a_mapping(guard: LeakGuard) -> None:
     with pytest.raises(TypeError):
         guard.safe_mapping(["not", "a", "mapping"])  # type: ignore[arg-type]
     assert guard.safe_mapping({}) == {}
+
+
+def test_blocking_shape_hits_exclude_passport_shapes() -> None:
+    """Order references like SO2026001 share the passport shape; Nour-authored text blocks on
+    IBAN and card shapes only (lead decision recorded in nour/core/leakguard.py)."""
+    text = f"order SO2026001 and PO1234567; IBAN {OTHER_IBAN}; card {PAN}; passport A12345678"
+    kinds = {hit.kind for hit in blocking_shape_hits(text)}
+    assert kinds == {"iban", "pan"}
+    assert blocking_shape_hits("Your order SO2026001 ships Tuesday.") == []
+    assert {hit.kind for hit in shape_hits(text)} == {"iban", "pan", "passport"}

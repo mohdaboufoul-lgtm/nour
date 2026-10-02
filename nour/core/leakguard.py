@@ -515,11 +515,15 @@ def _luhn_ok(digits: str) -> bool:
 
 
 def shape_hits(text: str) -> list[ShapeHit]:
-    """Advisory only (§13 auditor flag, InjectionScanner `bank_details` pattern). Never blocks rendering.
+    """Advisory shape detection (§13 auditor flag, InjectionScanner `bank_details` pattern).
 
     ``iban``: two letters, two digits, 15–34 alphanumerics in optional groups of four;
     ``pan``: 13–19 digits with optional separators that pass the Luhn check (every real card
     number does); ``passport``: one or two letters followed by 6–8 digits. Sorted by position.
+    Observed text is never blocked on shapes. For text Nour writes herself the blocking set is
+    :func:`blocking_shape_hits` (iban + pan only): the passport shape also matches ordinary
+    order references such as ``SO2026001``, and passport numbers held in the vault are caught
+    by value through the registered fingerprints.
     """
     if not isinstance(text, str):
         raise TypeError("shape_hits takes a str")
@@ -533,3 +537,11 @@ def shape_hits(text: str) -> list[ShapeHit]:
     for m in _PASSPORT_SHAPE_RE.finditer(text):
         hits.append(ShapeHit(kind="passport", span=(m.start(), m.end())))
     return sorted(hits, key=lambda hit: (hit.span[0], hit.span[1], hit.kind))
+
+
+def blocking_shape_hits(text: str) -> list[ShapeHit]:
+    """The shapes that make Nour-authored text a leak (THREAT_REVIEW 2.1): IBAN-shaped and
+    Luhn-valid card-PAN-shaped tokens. Nour never needs to type either (she uses placeholders
+    and references, §10), so a hit in a draft, brief, memory row, handoff or reason is refused
+    with ``RefusalCode.LEAK``. Passport shapes are advisory only (see :func:`shape_hits`)."""
+    return [hit for hit in shape_hits(text) if hit.kind in ("iban", "pan")]
