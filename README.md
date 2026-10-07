@@ -122,22 +122,23 @@ The constitution is the only file the owner edits by hand. A change needs the ow
 
 ## Moona
 
-`moona.py` is one standalone file, independent of the `nour/` package: an agent who lives on what she earns. She starts with the balance the owner put on her card (USD 50 by default), decides for herself what to do with every turn, and pays for every turn out of that balance at the real API price of the model she thinks with. Money only comes back in when the owner confirms a payment landed in her bank account. At zero she dies, and that is final.
+`moona.py` is one standalone file, independent of the `nour/` package: an agent who lives on what she earns. She starts with the balance the owner put on her card (USD 50 by default), decides for herself what to do with every turn, and pays for every turn out of that balance at the real API price of the model she thinks with. Money comes back in only when a client pays her: through a payment link she created herself, booked the moment she collects it, or by a transfer to her bank account, booked when the owner confirms it. At zero she dies, and that is final. Her survival is her own work.
 
-She acts alone inside her home directory: thinks, searches and reads the web, writes files, keeps notes, leaves the owner messages, sleeps. Anything that leaves that directory or touches money (sending, posting, paying, accepting work, signing up) she writes as a proposal, and a proposal is her decision the moment she writes it: nobody approves it, and a purchase is accepted only within her balance, which is what the card holds. The owner is her hands: carries each decision out with the card and the account, records what it cost, and refuses only what cannot or may not be done. The card number and the account details are never given to her and never enter her context; she writes `[BANK DETAILS]` where a client must be told where to pay.
+She acts alone: thinks, searches and reads the web, writes files in her home directory, keeps notes, sends and reads email from her own mailbox, creates payment links and collects what clients paid, leaves the owner messages, sleeps. Every status line tells her what her last turn cost, her burn rate and her runway. What still needs hands other than hers (paying for anything, posting or listing anything, signing up for anything) she writes as a proposal, and a proposal is her decision the moment she writes it: nobody approves it, and a purchase is accepted only within her balance, which is what the card holds. The owner is her hands: carries each decision out with the card, records what it cost, and refuses only what cannot or may not be done. The card number never enters her context. Her mailbox password and her payments key stay in the environment, used only by the file itself, and the payments key must be a restricted key (`rk_...`) that can take money in but never move it out.
 
 ```bash
 export ANTHROPIC_API_KEY=...                       # or `ant auth login`
 uv run moona.py birth                              # her balance, from MOONA_START_BALANCE
 uv run moona.py run                                # one session, until she sleeps or dies
-uv run moona.py status | proposals | inbox | ledger | journal | memory
+uv run moona.py status | proposals | inbox | ledger | journal | memory | mail | links
 uv run moona.py done 1 --spent 12.50               # you carried her decision out with the card
-uv run moona.py paid 40 --note "client X"          # money landed in the account
+uv run moona.py paid 40 --note "client X"          # a transfer landed in the account
+uv run moona.py payments                           # book what her payment links collected
 uv run moona.py sync 37.20                         # the card's real balance wins
 uv run moona.py kill --reason "experiment over"
 ```
 
-The file's docstring lists every `MOONA_*` variable; `.env.example` repeats them.
+Her channels are each off until configured: the mailbox (`MOONA_EMAIL`, `MOONA_EMAIL_PASSWORD`, `MOONA_SMTP_HOST`, `MOONA_IMAP_HOST`), the payment links (`MOONA_STRIPE_KEY`) and the bank details she may put on an invoice (`MOONA_BANK_DETAILS`). The file's docstring lists every `MOONA_*` variable; `.env.example` repeats them.
 
 ## The phase 0 gate
 
