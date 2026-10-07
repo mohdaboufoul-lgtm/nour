@@ -124,14 +124,14 @@ The constitution is the only file the owner edits by hand. A change needs the ow
 
 `moona.py` is one standalone file, independent of the `nour/` package: an agent who lives on what she earns. She starts with the balance the owner put on her card (USD 50 by default), decides for herself what to do with every turn, and pays for every turn out of that balance at the real API price of the model she thinks with. Money only comes back in when the owner confirms a payment landed in her bank account. At zero she dies, and that is final.
 
-She acts alone inside her home directory: thinks, searches and reads the web, writes files, keeps notes, leaves the owner messages, sleeps. Anything that leaves that directory or touches money (sending, posting, paying, accepting work, signing up) she writes as a proposal; the owner approves or rejects it and executes the approved ones with the card and the account. The card number and the account details are never given to her and never enter her context; she writes `[BANK DETAILS]` where a client must be told where to pay.
+She acts alone inside her home directory: thinks, searches and reads the web, writes files, keeps notes, leaves the owner messages, sleeps. Anything that leaves that directory or touches money (sending, posting, paying, accepting work, signing up) she writes as a proposal, and a proposal is her decision the moment she writes it: nobody approves it, and a purchase is accepted only within her balance, which is what the card holds. The owner is her hands: carries each decision out with the card and the account, records what it cost, and refuses only what cannot or may not be done. The card number and the account details are never given to her and never enter her context; she writes `[BANK DETAILS]` where a client must be told where to pay.
 
 ```bash
 export ANTHROPIC_API_KEY=...                       # or `ant auth login`
 uv run moona.py birth                              # her balance, from MOONA_START_BALANCE
 uv run moona.py run                                # one session, until she sleeps or dies
 uv run moona.py status | proposals | inbox | ledger | journal | memory
-uv run moona.py decide 1 approve --spent 12.50     # you did it with the card
+uv run moona.py done 1 --spent 12.50               # you carried her decision out with the card
 uv run moona.py paid 40 --note "client X"          # money landed in the account
 uv run moona.py sync 37.20                         # the card's real balance wins
 uv run moona.py kill --reason "experiment over"

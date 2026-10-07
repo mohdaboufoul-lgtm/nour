@@ -154,7 +154,7 @@ def test_a_session_acts_pays_and_sleeps(home: Any) -> None:
     proposals = home.proposals()
     assert (
         len(proposals) == 1
-        and proposals[0]["status"] == "pending"
+        and proposals[0]["status"] == "decided"
         and proposals[0]["kind"] == "publish"
     )
     assert state["sleep_until"] is not None
@@ -224,12 +224,7 @@ def test_money_moves_only_through_the_owner(home: Any, monkeypatch: pytest.Monke
     pid = home.propose(
         "pay", "Buy a domain", "namecheap.com, moona-writes.com, 1 year", Decimal("12.50")
     )
-    assert (
-        moona.main(
-            ["decide", str(pid), "approve", "--spent", "12.50", "--note", "done with the card"]
-        )
-        == 0
-    )
+    assert moona.main(["done", str(pid), "--spent", "12.50", "--note", "done with the card"]) == 0
     assert home.balance() == Decimal("37.50")
     assert moona.main(["paid", "40", "--note", "client X, invoice 1"]) == 0
     assert home.balance() == Decimal("77.50")
@@ -237,15 +232,60 @@ def test_money_moves_only_through_the_owner(home: Any, monkeypatch: pytest.Monke
     assert home.balance() == Decimal("70.10")
     kinds = [row["kind"] for row in home.ledger()]
     assert kinds == ["birth", "spend", "income", "sync"]
-    with pytest.raises(SystemExit, match="already approved"):
-        moona.main(["decide", str(pid), "reject"])
-    # her next session is told the decision, once
+    with pytest.raises(SystemExit, match="already done"):
+        moona.main(["refuse", str(pid), "--note", "too late"])
+    # her next session is told what was carried out, once
     opening = moona.opening_message(home, home.state())
-    assert f"#{pid} Buy a domain -> approved, spent $12.50: done with the card" in opening
+    assert f"#{pid} Buy a domain -> done, spent $12.50: done with the card" in opening
     assert f"#{pid}" not in moona.opening_message(home, home.state())
     assert moona.main(["kill", "--reason", "experiment over"]) == 0
     assert not home.state()["alive"] and moona.main(["status"]) == 0
     assert moona.main(["paid", "5"]) == 3  # dead: refused
+
+
+def test_a_purchase_is_her_decision_within_her_balance(
+    home: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = home.state()
+    # more than the card holds: refused by the tool itself, nothing is recorded
+    text_out, is_error, _ = moona.run_tool(
+        home,
+        "propose",
+        {
+            "reason": "r",
+            "kind": "pay",
+            "summary": "A laptop",
+            "details": "any shop",
+            "amount_usd": 50.01,
+        },
+        state,
+    )
+    assert is_error and "you cannot afford that" in text_out and home.proposals() == []
+    # within it: decided the moment she writes it, and the owner only carries it out
+    text_out, is_error, _ = moona.run_tool(
+        home,
+        "propose",
+        {
+            "reason": "r",
+            "kind": "sign_up",
+            "summary": "A freelance account",
+            "details": "site X, username moona, pay with [BANK DETAILS]",
+            "amount_usd": None,
+        },
+        state,
+    )
+    assert not is_error and text_out.startswith("decided: #1")
+    assert home.proposals()[0]["status"] == "decided"
+    assert "#1" in moona.opening_message(home, home.state())  # decided, not yet carried out
+    monkeypatch.setenv("MOONA_HOME", str(home.root))
+    monkeypatch.setenv("MOONA_MODEL", "claude-opus-5-5")
+    assert moona.main(["refuse", "1", "--note", "the site needs a passport"]) == 0
+    assert home.proposals()[0]["status"] == "refused" and home.balance() == Decimal("50.00")
+    opening = moona.opening_message(home, home.state())
+    assert "#1 A freelance account -> refused: the site needs a passport" in opening
+    assert home.journal_rows()[-1]["kind"] == "refused"
+    with pytest.raises(SystemExit, match="no proposal 7"):
+        moona.main(["done", "7"])
 
 
 def test_tools_stay_inside_her_home(home: Any) -> None:
@@ -328,6 +368,8 @@ def test_the_prompt_states_the_contract(tmp_path: Path) -> None:
         "never claim to be human",
         "No debt",
         "[BANK DETAILS]",
+        "nobody approves it",
+        "the card holds nothing more",
         "sleep, which is free",
     ):
         assert needle in prompt, needle

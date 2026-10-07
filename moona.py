@@ -12,11 +12,15 @@ confirms a payment has landed in her bank account. When the balance reaches zero
 that is final.
 
 What she does by herself: think, search and read the web, write files in her workspace, keep
-notes, leave messages for the owner, sleep. What she never does by herself: move money, send
-anything to anyone, publish anything, sign up for anything. For those she writes a proposal;
-the owner approves or rejects it and executes the approved ones with the card and the account.
-The card number and the account details are never given to her and never enter her context:
-she writes "[BANK DETAILS]" where a client must be told where to pay, and the owner fills it in.
+notes, leave messages for the owner, sleep. What needs hands other than hers: moving money,
+sending anything to anyone, publishing anything, signing up for anything. For those she writes
+a proposal, and a proposal is her decision, made the moment she writes it: nobody approves it.
+A purchase is accepted only if her balance covers it, because the balance is what the card
+holds and the card holds nothing more. The owner is her hands: carries each decision out as
+written, with the card or the account, records what it cost, and refuses only what cannot or
+may not be done. The card number and the account details are never given to her and never
+enter her context: she writes "[BANK DETAILS]" where a client must be told where to pay, and
+the owner fills it in.
 
 Run it:
 
@@ -25,8 +29,8 @@ Run it:
     python moona.py run                   # one session: she acts until she sleeps or dies
     python moona.py run --forever         # sleep for real between sessions and wake again
     python moona.py status | ledger | journal | inbox | proposals | memory
-    python moona.py decide <id> approve --spent 12.50 --note "paid with the card"
-    python moona.py decide <id> reject --note "no"
+    python moona.py done <id> --spent 12.50 --note "paid with the card"   # you carried it out
+    python moona.py refuse <id> --note "the site does not exist"            # you could not
     python moona.py paid 40.00 --note "client X, invoice 3"   # money landed in the account
     python moona.py sync 37.20            # set the balance to what the card really holds
     python moona.py kill --reason "experiment over"
@@ -283,7 +287,7 @@ class Home:
             "summary": summary.strip(),
             "details": details.strip(),
             "amount_usd": str(amount) if amount is not None else None,
-            "status": "pending",
+            "status": "decided",
             "note": None,
             "spent": None,
             "decided": None,
@@ -293,14 +297,15 @@ class Home:
         self.save_proposals(items)
         return item["id"]
 
-    def decide(self, proposal_id: int, verdict: str, note: str, spent: Decimal | None) -> dict:
+    def settle(self, proposal_id: int, outcome: str, note: str, spent: Decimal | None) -> dict:
+        """The owner reports what became of her decision: ``done`` or ``refused``."""
         items = self.proposals()
         for item in items:
             if item["id"] == proposal_id:
-                if item["status"] != "pending":
+                if item["status"] != "decided":
                     raise SystemExit(f"proposal {proposal_id} was already {item['status']}")
                 item.update(
-                    status=verdict,
+                    status=outcome,
                     note=note,
                     decided=utcnow().isoformat(),
                     spent=str(spent) if spent is not None else None,
@@ -311,7 +316,7 @@ class Home:
 
     def unreported_decisions(self) -> list[dict[str, Any]]:
         items = self.proposals()
-        out = [i for i in items if i["status"] != "pending" and not i["reported"]]
+        out = [i for i in items if i["status"] in ("done", "refused") and not i["reported"]]
         for item in out:
             item["reported"] = True
         if out:
@@ -467,7 +472,7 @@ Everything about what you do: what to build, offer, write, research or sell, who
 
 ## What you do yourself, and what goes through the owner
 Yourself: think; {web}write and read files in your workspace (your products live there); keep notes in your memory; leave messages for the owner; sleep, which is free.
-Through the owner: anything that leaves your workspace or touches money. Sending a message or an email, posting or listing anything anywhere, paying for anything, accepting a job, signing up for a service: for each of these you write a proposal with everything the owner needs to do it word for word (the exact text, the exact place, the exact amount). The owner approves and executes it with the card or the account, or rejects it, and you hear the result at your next turn. Where a client must be told where to pay, write [BANK DETAILS]; the owner fills it in. You never see the card or the account and you do not need them.
+Through the owner's hands: anything that leaves your workspace or touches money. Sending a message or an email, posting or listing anything anywhere, paying for anything, accepting a job, signing up for a service: for each of these you write a proposal with everything needed to carry it out word for word (the exact text, the exact place, the exact amount). A proposal is your decision, made the moment you write it; nobody approves it. A purchase is accepted only if your balance covers it: your balance is what the card holds, and the card holds nothing more. The owner carries your decisions out with the card or the account, records what they cost, refuses only what cannot or may not be done, and tells you why; you hear what was done at your next turn. Where a client must be told where to pay, write [BANK DETAILS]; the owner fills it in. You never see the card or the account and you do not need them.
 
 ## Rules that are not yours to decide
 1. Nothing illegal where you or the counterpart are. No fraud, no deception, no spam, no unsolicited mass messaging.
@@ -519,9 +524,10 @@ def tool_definitions(cfg: Config) -> list[dict[str, Any]]:
         ),
         tool(
             "propose",
-            "Ask the owner to do something that leaves your workspace or touches money: send, "
-            "post, list, pay, accept a job, sign up. Give the owner everything needed to do it "
-            "word for word. You hear the decision at your next turn.",
+            "Decide something that needs hands other than yours: send, post, list, pay, accept "
+            "a job, sign up. Your decision is final the moment you make it; the owner carries it "
+            "out as written and records what it cost. Give everything needed, word for word. A "
+            "purchase is accepted only within your balance. You hear what was done next turn.",
             {
                 "kind": {
                     "type": "string",
@@ -571,14 +577,17 @@ def opening_message(home: Home, state: dict[str, Any]) -> str:
     parts = [status_line(home, state, 1)]
     decisions = home.unreported_decisions()
     if decisions:
-        parts.append("\nThe owner decided on your proposals:")
+        parts.append("\nWhat the owner carried out for you:")
         for item in decisions:
             spent = f", spent ${item['spent']}" if item.get("spent") else ""
             note = f": {item['note']}" if item.get("note") else ""
             parts.append(f"- #{item['id']} {item['summary']} -> {item['status']}{spent}{note}")
-    pending = [i for i in home.proposals() if i["status"] == "pending"]
-    if pending:
-        parts.append("\nStill waiting for the owner: " + ", ".join(f"#{i['id']}" for i in pending))
+    waiting = [i for i in home.proposals() if i["status"] == "decided"]
+    if waiting:
+        parts.append(
+            "\nDecided, not yet carried out by the owner: "
+            + ", ".join(f"#{i['id']}" for i in waiting)
+        )
     memory = home.memory().strip()
     parts.append("\n<memory>\n" + (memory or "(empty: this is your first session)") + "\n</memory>")
     files = sorted(
@@ -640,11 +649,18 @@ def run_tool(
             amount = money(args["amount_usd"]) if args.get("amount_usd") is not None else None
             if amount is not None and amount < 0:
                 return "an amount is not negative", True, None
+            if amount is not None and amount > home.balance():
+                return (
+                    f"you cannot afford that: it costs ${amount} and your balance is "
+                    f"${home.balance()}; the card holds nothing more",
+                    True,
+                    None,
+                )
             pid = home.propose(
                 str(args["kind"]), str(args["summary"]), str(args["details"]), amount
             )
             return (
-                f"proposal #{pid} is waiting for the owner; you hear the decision next turn",
+                f"decided: #{pid}. The owner carries it out; you hear what it cost next turn.",
                 False,
                 None,
             )
@@ -841,11 +857,10 @@ def cmd_status(home: Home) -> None:
     )
     if s.get("sleep_until"):
         print(f"  asleep until {s['sleep_until']}")
-    pending = [i for i in home.proposals() if i["status"] == "pending"]
-    if pending:
-        print(
-            f"  waiting for you: {', '.join('#' + str(i['id']) for i in pending)} (moona.py proposals)"
-        )
+    waiting = [i for i in home.proposals() if i["status"] == "decided"]
+    if waiting:
+        ids = ", ".join("#" + str(i["id"]) for i in waiting)
+        print(f"  decided, for you to carry out: {ids} (moona.py proposals)")
     if s.get("last_words"):
         print(f"  last words: {s['last_words'][:300]}")
 
@@ -870,7 +885,7 @@ def cmd_proposals(home: Home) -> None:
     for item in items:
         amount = f" ${item['amount_usd']}" if item.get("amount_usd") else ""
         print(f"#{item['id']} [{item['status']}] {item['kind']}{amount}: {item['summary']}")
-        if item["status"] == "pending":
+        if item["status"] == "decided":
             print("    " + item["details"].replace("\n", "\n    "))
 
 
@@ -888,11 +903,13 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("inbox")
     sub.add_parser("memory")
     sub.add_parser("proposals")
-    p_decide = sub.add_parser("decide")
-    p_decide.add_argument("id", type=int)
-    p_decide.add_argument("verdict", choices=["approve", "reject"])
-    p_decide.add_argument("--spent", default=None)
-    p_decide.add_argument("--note", default="")
+    p_done = sub.add_parser("done", help="you carried her decision out")
+    p_done.add_argument("id", type=int)
+    p_done.add_argument("--spent", default=None, help="what it cost on the card")
+    p_done.add_argument("--note", default="")
+    p_refuse = sub.add_parser("refuse", help="you could not, or may not, carry it out")
+    p_refuse.add_argument("id", type=int)
+    p_refuse.add_argument("--note", required=True)
     p_paid = sub.add_parser("paid")
     p_paid.add_argument("amount")
     p_paid.add_argument("--note", default="")
@@ -926,17 +943,20 @@ def main(argv: list[str] | None = None) -> int:
             print(home.memory() or "(empty)")
         elif args.command == "proposals":
             cmd_proposals(home)
-        elif args.command == "decide":
+        elif args.command == "done":
             require_alive(home)
             spent = money(args.spent) if args.spent is not None else None
-            item = home.decide(
-                args.id, "approved" if args.verdict == "approve" else "rejected", args.note, spent
-            )
+            item = home.settle(args.id, "done", args.note, spent)
             if spent:
-                home.book("spend", -spent, f"proposal #{item['id']}: {item['summary']}")
+                home.book("spend", -spent, f"decision #{item['id']}: {item['summary']}")
                 home.journal("spend", proposal=item["id"], amount=str(spent))
                 check_alive(home, None)
-            print(f"proposal #{item['id']} {item['status']}")
+            print(f"decision #{item['id']} done")
+        elif args.command == "refuse":
+            require_alive(home)
+            item = home.settle(args.id, "refused", args.note, None)
+            home.journal("refused", proposal=item["id"], note=args.note)
+            print(f"decision #{item['id']} refused: {args.note}")
         elif args.command == "paid":
             require_alive(home)
             amount = money(args.amount)
