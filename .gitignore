@@ -26,3 +26,5 @@ backups/
 .idea/
 .vscode/
 moona_home/
+moona.env
+.moona-venv/
