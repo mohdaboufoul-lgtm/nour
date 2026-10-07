@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     dry_run: bool = True
     stamp_key_name: str = "auth/stamp-key"
     leakguard_key_name: str = "governance/leakguard-key"
+    moona_database_url: str = "sqlite+pysqlite:///moona.sqlite3"
+    """Moona's own store (docs/MOONA.md §7): never the brain's database, so the desks' Alembic
+    chain sees no drift and his tables stay his alone."""
 
     @field_validator("env", "secrets_backend", mode="before")
     @classmethod

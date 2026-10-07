@@ -106,6 +106,7 @@ Every public class/function below has its real signature; a docstring names the 
 | `nour/records/memory.py` | `MemoryStore` (per-desk namespace) | §8 | records | core, db |
 | `nour/events/bus.py`, `router.py` | Durable `EventBus` over `inbox_event`; `Router` | §4 §5 | events (2) | core, db |
 | `nour/events/scheduler.py`, `adapters.py` | `Scheduler` (exactly-once via `timer_slot`); `InboundAdapters` | §12 | events | core, db |
+| `nour/moona/{config,money,ports,store,wallet,life,journal,tools,prompt,runtime,fakes,simulation,cli}.py` | Moona, the self-funded sub-agent (docs/MOONA.md): his config and prompt loader, a wallet whose spend is gated by its own authorization and whose income is gated by a settled receipt, a one-way life, a hash-chained journal, the tool vocabulary, the fenced prompt, the tick loop, the fake economy, the simulation and the `moona` CLI | §7 §8 §10 §12 §13 §16 | moona (2) | core, config, db, fakes, language |
 | `nour/policy/registry.py` | `ToolRegistry`, `ToolView` | §4 §7 | policy (3) | core |
 | `nour/policy/tiering.py` | `TierResolver` (monotone rules as data) | §6 §10 §12 | policy | core, records |
 | `nour/policy/approvals.py` | `ApprovalsQueue`, decision journal, `ReleasedAction` minting | §6 §8 §12 | policy | audit, auth |
@@ -1760,6 +1761,11 @@ Rules: a module owns disjoint source **and** test files; modules in the same wav
 - Source: `nour/events/__init__.py`, `nour/events/bus.py`, `nour/events/router.py`, `nour/events/scheduler.py`, `nour/events/adapters.py`
 - Tests: `tests/unit/test_event_bus.py`, `tests/unit/test_router.py`, `tests/unit/test_scheduler.py`, `tests/unit/test_adapters.py`
 
+**moona** — the self-funded sub-agent of SPEC §7 ("sub-agents … with their own budgets and kill switches"; ROADMAP P3.5) landed early as a standalone package on his own store and ports: one wallet seeded once and never topped up, every model call and a daily upkeep debited from it, income only through a settled payment receipt, death at zero as a one-way transition the database enforces, a hash-chained journal with `Actor.SUBAGENT` on every row, observed marketplace text fenced and scanned, honesty and merchant rules enforced in code; a fake economy and a simulation (`moona simulate`) stand in for live rails until the adapters named in `config/moona.yaml` exist. When wave 4 lands, `SubAgentRunner` mounts him under the Operator desk; until then nothing he does touches a live channel. Spec: §7 §8 §10 §12 §13 §16; docs/MOONA.md. Depends on: core, config, db, fakes, language. ~2,600 source + ~1,300 tests.
+- Source: `nour/moona/__init__.py`, `nour/moona/config.py`, `nour/moona/money.py`, `nour/moona/ports.py`, `nour/moona/store.py`, `nour/moona/wallet.py`, `nour/moona/life.py`, `nour/moona/journal.py`, `nour/moona/tools.py`, `nour/moona/prompt.py`, `nour/moona/runtime.py`, `nour/moona/fakes.py`, `nour/moona/simulation.py`, `nour/moona/cli.py`
+- Data: `config/moona.yaml`, `prompts/moona/system.md`, `docs/MOONA.md`; `NOUR_MOONA_DATABASE_URL` in `.env.example`
+- Tests: `tests/unit/test_moona_config.py`, `tests/unit/test_moona_wallet.py`, `tests/unit/test_moona_life.py`, `tests/unit/test_moona_journal.py`, `tests/unit/test_moona_prompt.py`, `tests/unit/test_moona_runtime.py`, `tests/unit/test_moona_cli.py`
+
 ### Wave 3 (import ≤ wave 2)
 
 **policy** — tool registry/views, tier resolver, approvals queue + decision journal, one-way handoff. Spec: §4 §5 §6 §7 §8 §10 §12. Depends on: core, db, fakes, audit, auth, vault, records, events. ~680 source + ~480 tests.
@@ -1799,7 +1805,7 @@ Rules: a module owns disjoint source **and** test files; modules in the same wav
 
 ### Import graph (what `lint-imports` and `test_wave_imports.py` check)
 
-`nour.cli` → `nour.testing` → `nour.runtime` → {`nour.ingress`, `nour.adapters`} → {`nour.agent` | `nour.tools`} → {`nour.policy` | `nour.governance`} → {`nour.audit` | `nour.auth` | `nour.vault` | `nour.records` | `nour.events`} → {`nour.db` | `nour.fakes` | `nour.language`} → `nour.config` → `nour.core`. Siblings in braces never import each other: the gate reaches tool handlers through `ToolRegistry`, `ApprovalsQueue` receives `mint` as a callable, `InboundAdapters` takes a `RedactorLike`, and `nour/core/contracts.py` refers to `CoatConfig` only under `TYPE_CHECKING`. Forbidden edges: `nour.tools.common`/`nour.tools.operator` → `nour.vault`; `nour.audit.auditor` → desks, gate, loop, vault.
+`nour.cli` → `nour.testing` → `nour.runtime` → {`nour.ingress`, `nour.adapters`} → {`nour.agent` | `nour.tools`} → {`nour.policy` | `nour.governance`} → {`nour.audit` | `nour.auth` | `nour.vault` | `nour.records` | `nour.events` | `nour.moona`} → {`nour.db` | `nour.fakes` | `nour.language`} → `nour.config` → `nour.core`. Siblings in braces never import each other: the gate reaches tool handlers through `ToolRegistry`, `ApprovalsQueue` receives `mint` as a callable, `InboundAdapters` takes a `RedactorLike`, and `nour/core/contracts.py` refers to `CoatConfig` only under `TYPE_CHECKING`. Forbidden edges: `nour.tools.common`/`nour.tools.operator` → `nour.vault`; `nour.audit.auditor` → desks, gate, loop, vault.
 
 ---
 
