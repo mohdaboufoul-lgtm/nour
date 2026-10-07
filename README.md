@@ -140,6 +140,8 @@ uv run moona.py kill --reason "experiment over"
 
 Her channels are each off until configured: the mailbox (`MOONA_EMAIL`, `MOONA_EMAIL_PASSWORD`, `MOONA_SMTP_HOST`, `MOONA_IMAP_HOST`), the payment links (`MOONA_STRIPE_KEY`) and the bank details she may put on an invoice (`MOONA_BANK_DETAILS`). The file's docstring lists every `MOONA_*` variable; `.env.example` repeats them.
 
+How smart she is, is a setting. `MOONA_MODEL=claude-fable-5-1` with `MOONA_EFFORT=max` is the sharpest she gets; it also spends her balance fastest, so the smartest viable setup is the one that still leaves her turns to earn with. Her prompt also makes her plan, check her own work and spend thinking where money turns on it. The default is a high effort on `claude-opus-5-5`.
+
 To run her on an Android phone, through Termux, see [docs/MOONA_ANDROID.md](docs/MOONA_ANDROID.md). She runs there exactly as on a laptop: the phone is only the computer she runs on, and Termux sandboxes her from the rest of it.
 
 ## The phase 0 gate

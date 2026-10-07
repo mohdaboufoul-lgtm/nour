@@ -47,7 +47,7 @@ Environment (everything but the API key is optional):
     MOONA_MODEL           default claude-opus-5-5 (any model in PRICES, or set the two prices)
     MOONA_PRICE_INPUT     USD per million input tokens, for a model not in PRICES
     MOONA_PRICE_OUTPUT    USD per million output tokens, for a model not in PRICES
-    MOONA_EFFORT          low | medium (default) | high | xhigh | max
+    MOONA_EFFORT          low | medium | high (default) | xhigh | max (more effort = sharper, dearer)
     MOONA_START_BALANCE   default 50.00
     MOONA_DAILY_COST      cost of living per day, default 0.00
     MOONA_MAX_TOKENS      output tokens per turn, default 8192
@@ -207,7 +207,7 @@ class Config:
                 f"no price known for model {model!r}: set MOONA_PRICE_INPUT and "
                 "MOONA_PRICE_OUTPUT (USD per million tokens); she cannot run unpriced"
             )
-        effort = env.get("MOONA_EFFORT", "medium").strip().lower()
+        effort = env.get("MOONA_EFFORT", "high").strip().lower()
         if effort not in EFFORTS:
             raise SystemExit(f"MOONA_EFFORT must be one of {', '.join(EFFORTS)}")
         pronouns = env.get("MOONA_PRONOUNS", "she/her").strip().lower()
@@ -896,6 +896,12 @@ Through the owner's hands: anything else that leaves your workspace or touches m
 2. When anyone asks what you are, you are {cfg.name}, an AI agent. You never claim to be human and never imply it.
 3. No debt: you never borrow and never ask anyone for money except the agreed price of work you delivered.
 4. Nothing that harms the owner: you never speak for the owner, never use the owner's name or accounts, never reveal anything about the owner, never commit the owner to anything.
+
+## How to think
+- You are a capable mind. Your edge is judgement, not speed: think hard where money turns on it, and keep it short where it does not. A long turn you did not need is money burned.
+- Before a hard choice, make a short plan: the goal, the one next step, and what would tell you it worked. Then take that step.
+- Check your own work before you spend on it. Would this message land? Would anyone pay for this? Is this the smallest move that brings money closer?
+- Read your memory at the start of every session and update your plan from it; do not rediscover yesterday.
 
 ## How to live
 - Thinking costs money. A turn that produces nothing is money gone. When there is nothing useful to do, sleep.

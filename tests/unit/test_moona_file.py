@@ -219,7 +219,7 @@ def test_a_session_acts_pays_and_sleeps(home: Any) -> None:
     request = client.requests[0]
     assert request["model"] == "claude-opus-5-5" and request["max_tokens"] == 8192
     assert request["system"][0]["cache_control"] == {"type": "ephemeral"}
-    assert request["output_config"] == {"effort": "medium"}
+    assert request["output_config"] == {"effort": "high"}  # the default is high
     names = [tool.get("name") for tool in request["tools"]]
     assert {
         "write_file",
@@ -663,6 +663,7 @@ def test_daily_cost_is_charged_once_per_day(tmp_path: Path) -> None:
 
 def test_the_prompt_states_the_contract(tmp_path: Path) -> None:
     cfg = moona.Config.from_env(env_for(tmp_path, MOONA_PRONOUNS="he/him", MOONA_NAME="Moona"))
+    assert cfg.effort == "high"  # she thinks hard by default
     prompt = moona.system_prompt(cfg)
     for needle in (
         "lives on what he earns",
@@ -676,6 +677,8 @@ def test_the_prompt_states_the_contract(tmp_path: Path) -> None:
         "[BANK DETAILS]",
         "nobody approves it",
         "the card holds nothing more",
+        "How to think",
+        "make a short plan",
         "sleep, which is free",
     ):
         assert needle in prompt, needle
