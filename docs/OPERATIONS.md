@@ -49,7 +49,6 @@ schema. The brain's own role should get `INSERT` but never `UPDATE`/`DELETE` on 
 | Secrets and vault (§11, §13) | `NOUR_SECRETS_BACKEND` (env, aws, azure, vault), `NOUR_VAULT_STORAGE` (local, s3), `NOUR_VAULT_KEY_REF`, `NOUR_S3_*`, `MINIO_ROOT_*` |
 | Owner thread and channels (§6, §9) | `NOUR_OWNER_WHATSAPP_NUMBER`, `NOUR_WHATSAPP_APP_SECRET`, `NOUR_WHATSAPP_VERIFY_TOKEN`, `NOUR_WHATSAPP_ACCESS_TOKEN_REF`, `NOUR_SECOND_CHANNEL` (email, desktop) |
 | Money (§10) | `NOUR_CARD_ISSUER` (fake or the provider) |
-| Moona (§7 sub-agents, docs/MOONA.md) | `NOUR_MOONA_DATABASE_URL` (his own store, never the brain's database) |
 
 Rules:
 

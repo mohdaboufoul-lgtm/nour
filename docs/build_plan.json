@@ -318,51 +318,6 @@
             "fakes"
           ],
           "est_lines": 790
-        },
-        {
-          "name": "moona",
-          "owned_paths": [
-            "nour/moona/__init__.py",
-            "nour/moona/config.py",
-            "nour/moona/money.py",
-            "nour/moona/ports.py",
-            "nour/moona/store.py",
-            "nour/moona/wallet.py",
-            "nour/moona/life.py",
-            "nour/moona/journal.py",
-            "nour/moona/tools.py",
-            "nour/moona/prompt.py",
-            "nour/moona/runtime.py",
-            "nour/moona/fakes.py",
-            "nour/moona/simulation.py",
-            "nour/moona/cli.py",
-            "config/moona.yaml",
-            "prompts/moona/system.md",
-            "docs/MOONA.md",
-            "tests/unit/test_moona_config.py",
-            "tests/unit/test_moona_wallet.py",
-            "tests/unit/test_moona_life.py",
-            "tests/unit/test_moona_journal.py",
-            "tests/unit/test_moona_prompt.py",
-            "tests/unit/test_moona_runtime.py",
-            "tests/unit/test_moona_cli.py"
-          ],
-          "responsibility": "Moona, the self-funded sub-agent of SPEC §7 (ROADMAP P3.5) as a standalone package on his own store: a wallet seeded once whose spend side accepts only its own WalletAuthorization and whose income side accepts only a settled PaymentReceipt, model cost and daily upkeep debited from it, death at zero as a single transition the database enforces, a hash-chained journal with Actor.SUBAGENT, marketplace and payment ports with fakes, a fenced and scanned prompt, the tick loop, a deterministic simulated economy and the moona CLI (birth, status, simulate, run, kill, freeze, thaw, ledger, journal, inbox, verify).",
-          "spec_sections": [
-            "§7",
-            "§8",
-            "§10",
-            "§12",
-            "§13",
-            "§16"
-          ],
-          "depends_on": [
-            "core",
-            "db",
-            "fakes",
-            "language"
-          ],
-          "est_lines": 3900
         }
       ]
     },

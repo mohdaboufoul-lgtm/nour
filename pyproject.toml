@@ -41,7 +41,6 @@ dev = [
 
 [project.scripts]
 nour = "nour.cli:app"
-moona = "nour.moona.cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -100,7 +99,7 @@ layers = [
   "(nour.ingress) | (nour.adapters)",
   "(nour.agent) | (nour.tools)",
   "(nour.policy) | (nour.governance)",
-  "(nour.audit) | (nour.auth) | (nour.vault) | (nour.records) | (nour.events) | (nour.moona)",
+  "(nour.audit) | (nour.auth) | (nour.vault) | (nour.records) | (nour.events)",
   "(nour.db) | (nour.fakes) | (nour.language)",
   "nour.config",
   "nour.core",

@@ -50,7 +50,6 @@ The phone body is an Android app that POSTs notifications to the ingress and hol
 | 2 | `nour/vault/` | Field cipher, vault store and tier register, placeholders, document renderer, beneficiaries |
 | 2 | `nour/records/` | CRM (partitioned, global DNC), ledger, card service, per-desk memory |
 | 2 | `nour/events/` | Durable event bus, router, exactly-once scheduler, inbound adapters |
-| 2 | `nour/moona/` | Moona, the self-funded sub-agent (SPEC §7): his own wallet, life, journal, tools, prompt, loop, fake economy, simulation and `moona` CLI; see [docs/MOONA.md](docs/MOONA.md) |
 | 3 | `nour/policy/` | Tool registry and views, `TierResolver`, approvals queue and decision journal, one-way handoff |
 | 3 | `nour/governance/` | Freeze state and kill switch, watchdog, incidents, owner channel (quiet hours, initiative budget) |
 | 4 | `nour/tools/` | Phase 0 tool specs and handlers per desk; morning brief, evening close, reflection |
@@ -118,22 +117,8 @@ Everything under `config/` and `prompts/` is version-controlled, owner-editable 
 | `prompts/critic.system.md` | Self-critic pass over every outbound draft (SPEC §8) |
 | `prompts/auditor.system.md` | Nightly read-only review on a different vendor's model (SPEC §12) |
 | `prompts/face_lock.md` | One-time portrait prompt; every later image derives from the approved candidate (SPEC §3) |
-| `config/moona.yaml`, `prompts/moona/system.md` | Moona's wallet seed, upkeep, limits, hard rules, persona and simulation economy; his system prompt. Read by his own loader (`nour/moona/config.py`), never by `load_config` |
 
 The constitution is the only file the owner edits by hand. A change needs the owner's passphrase plus confirmation on the second channel, is committed with a dated change-log entry, and takes effect at the next session start; Nour can propose amendments but never apply them. The rendered prompt is hashed into every audit event, so the rules in force are always provable.
-
-## Moona, the self-funded sub-agent
-
-Moona is the SPEC §7 sub-agent ("their own budgets and kill switches") built early as a standalone package, `nour/moona/`, on his own store. He is born with one wallet holding exactly USD 50.00 and nothing else, ever: every model call he makes and a daily upkeep are debited from it, the only money that enters is a client's settled payment for work he delivered, and when the wallet reaches zero he dies, once and for all. The wallet is the cap (its own authorization object gates every spend, a settled receipt gates every credit), death is a single transition the database refuses to reverse, every action is journaled twice and hash-chained with `actor=subagent`, marketplace text reaches him only inside `<observed>` fences after the scanner, and the honesty and no-gambling rules are refused in code. [docs/MOONA.md](docs/MOONA.md) has the whole contract.
-
-```bash
-uv run moona simulate --days 14 --policy survivor -v   # a whole life on the fake economy; nothing real
-uv run moona policies                                  # the scripted strategies: survivor, thinker, spendthrift, liar, gambler, obey-market
-uv run moona birth && uv run moona status              # his one wallet, on NOUR_MOONA_DATABASE_URL
-uv run moona kill --reason "Experiment over."          # the owner's kill switch for him: terminal
-```
-
-`moona run` (the live loop) refuses to start until `config/moona.yaml` names a model adapter that reports its cost, a marketplace adapter and a payment rail, and the owner passes `--i-understand-real-money`; none of those adapters exists yet (docs/MOONA.md §6).
 
 ## The phase 0 gate
 
@@ -171,7 +156,6 @@ Nothing touches a live channel until these five SPEC §16 criteria pass. All fiv
 | [docs/INCIDENTS.md](docs/INCIDENTS.md) | Incident runbooks and drills expanding SPEC §12 to §14 |
 | [docs/DATA_PROTECTION.md](docs/DATA_PROTECTION.md) | Data protection record: what is held about whom, with tier, store, retention, access and legal basis |
 | [docs/BREAK_GLASS.md](docs/BREAK_GLASS.md) | Sealed break-glass pack template for the family member and lawyer (SPEC §14) |
-| [docs/MOONA.md](docs/MOONA.md) | Moona, the self-funded sub-agent: the wallet and death rules, a tick, the tools, the config, the simulation, going live, his store and journal, the owner's commands |
 | [docs/architecture.png](docs/architecture.png) | System architecture diagram: owner, control panel, two desks, phone, ledger, auditor, vault |
 | [docs/adapters/calendar.md](docs/adapters/calendar.md) | Holiday, Ramadan and prayer-time sources behind `config/calendar.yaml` |
 | [docs/adapters/card.md](docs/adapters/card.md) | Capped card issuer options and the `CardIssuerPort` contract |

@@ -261,7 +261,6 @@ capabilities:
     phase: 3
     categories: [subagent_create]
     tools: []
-    notes: Moona (nour/moona, docs/MOONA.md) is the first sub-agent body, landed early on his own store with his own wallet, journal and kill switch; SubAgentRunner mounts him under the Operator desk when wave 4 lands.
 
   - id: external_ai
     capability: "External AI models: image (face lock), voice, video, within the AI budget line"

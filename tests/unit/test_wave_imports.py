@@ -26,9 +26,7 @@ LAYERS: tuple[frozenset[str], ...] = (
     frozenset({"nour.core"}),
     frozenset({"nour.config"}),
     frozenset({"nour.db", "nour.fakes", "nour.language"}),
-    frozenset(
-        {"nour.audit", "nour.auth", "nour.vault", "nour.records", "nour.events", "nour.moona"}
-    ),
+    frozenset({"nour.audit", "nour.auth", "nour.vault", "nour.records", "nour.events"}),
     frozenset({"nour.policy", "nour.governance"}),
     frozenset({"nour.agent", "nour.tools"}),
     frozenset({"nour.ingress", "nour.adapters"}),
@@ -37,7 +35,7 @@ LAYERS: tuple[frozenset[str], ...] = (
     frozenset({"nour.cli"}),
 )
 """DESIGN §8: ``nour.cli`` → ``nour.testing`` → ``nour.runtime`` → {ingress, adapters} →
-{agent | tools} → {policy | governance} → {audit | auth | vault | records | events | moona} →
+{agent | tools} → {policy | governance} → {audit | auth | vault | records | events} →
 {db | fakes | language} → ``nour.config`` → ``nour.core``."""
 
 LAYER_OF: dict[str, int] = {pkg: index for index, layer in enumerate(LAYERS) for pkg in layer}
