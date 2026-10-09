@@ -144,6 +144,8 @@ How smart she is, is a setting. `MOONA_MODEL=claude-fable-5-1` with `MOONA_EFFOR
 
 To run her on an Android phone, through Termux, see [docs/MOONA_ANDROID.md](docs/MOONA_ANDROID.md). She runs there exactly as on a laptop: the phone is only the computer she runs on, and Termux sandboxes her from the rest of it.
 
+To run her on a Windows, macOS or Linux PC, see [docs/MOONA_PC.md](docs/MOONA_PC.md): `powershell -ExecutionPolicy Bypass -File .\moona.ps1` on Windows, `sh moona-android.sh` on macOS or Linux.
+
 ## The phase 0 gate
 
 Nothing touches a live channel until these five SPEC §16 criteria pass. All five run offline in one `pytest` invocation (`-m gate`) on SQLite with fakes and a `FakeClock` (DESIGN §7.1).

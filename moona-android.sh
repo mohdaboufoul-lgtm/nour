@@ -29,8 +29,20 @@ fi
 
 venv="${MOONA_VENV:-$here/.moona-venv}"
 if [ ! -x "$venv/bin/python" ]; then
+    py=""
+    for cand in python3 python; do
+        if command -v "$cand" >/dev/null 2>&1; then
+            py="$cand"
+            break
+        fi
+    done
+    if [ -z "$py" ]; then
+        echo "Python 3 is not installed. Install it, then run this again." >&2
+        echo "  macOS: brew install python   Debian/Ubuntu: sudo apt install python3-venv   Termux: pkg install python" >&2
+        exit 1
+    fi
     echo "Creating her Python environment in $venv ..."
-    python -m venv "$venv"
+    "$py" -m venv "$venv"
     if ! "$venv/bin/python" -m pip install --quiet 'anthropic>=1.0'; then
         echo "Installing the Anthropic SDK failed. On Termux this is usually the Rust" >&2
         echo "build for pydantic: run  pkg install rust binutils  and start again." >&2
