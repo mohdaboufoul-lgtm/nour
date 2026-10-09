@@ -91,9 +91,13 @@ from zoneinfo import ZoneInfo
 from adhanpy.PrayerTimes import PrayerTimes
 from adhanpy.calculation.CalculationMethod import CalculationMethod
 
-pt = PrayerTimes((25.2048, 55.2708), datetime(2026, 10, 2),
-                 CalculationMethod.DUBAI, time_zone=ZoneInfo("Asia/Dubai"))
-pt.fajr, pt.sunrise, pt.dhuhr, pt.asr, pt.maghrib, pt.isha   # aware datetimes
+pt = PrayerTimes(
+    (25.2048, 55.2708),
+    datetime(2026, 10, 2),
+    CalculationMethod.DUBAI,
+    time_zone=ZoneInfo("Asia/Dubai"),
+)
+pt.fajr, pt.sunrise, pt.dhuhr, pt.asr, pt.maghrib, pt.isha  # aware datetimes
 ```
 
 `prayer_times.method_adjustments_minutes` in the YAML mirrors what `DUBAI` applies, so a

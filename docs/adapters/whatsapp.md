@@ -276,73 +276,140 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 
-LineId = str            # phone_number_id; the registry maps LineId -> coat
+LineId = str  # phone_number_id; the registry maps LineId -> coat
 MessageKind = Literal["text", "audio", "image", "document", "reaction", "unsupported"]
+
 
 @dataclass(frozen=True)
 class MediaRef:
-    media_id: str; mime_type: str; sha256_b64: str
-    filename: str | None = None; caption: str | None = None; voice: bool = False
+    media_id: str
+    mime_type: str
+    sha256_b64: str
+    filename: str | None = None
+    caption: str | None = None
+    voice: bool = False
+
 
 @dataclass(frozen=True)
 class InboundMessage:
-    waba_id: str; line: LineId; display_phone_number: str
-    message_id: str                              # wamid — idempotency key
-    sender_wa_id: str; sender_name: str | None   # name is untrusted display data
-    timestamp: datetime; kind: MessageKind
-    text: str | None = None; media: MediaRef | None = None
-    reaction_to: str | None = None; reaction_emoji: str | None = None
-    reply_to: str | None = None; forwarded: bool = False
+    waba_id: str
+    line: LineId
+    display_phone_number: str
+    message_id: str  # wamid — idempotency key
+    sender_wa_id: str
+    sender_name: str | None  # name is untrusted display data
+    timestamp: datetime
+    kind: MessageKind
+    text: str | None = None
+    media: MediaRef | None = None
+    reaction_to: str | None = None
+    reaction_emoji: str | None = None
+    reply_to: str | None = None
+    forwarded: bool = False
     errors: tuple["ApiError", ...] = ()
+
 
 @dataclass(frozen=True)
 class StatusEvent:
-    waba_id: str; line: LineId; message_id: str; recipient_wa_id: str
-    status: Literal["sent", "delivered", "read", "played", "failed"]; timestamp: datetime
-    conversation_id: str | None = None; origin: str | None = None    # marketing/utility/service/...
-    pricing_category: str | None = None; billable: bool | None = None
+    waba_id: str
+    line: LineId
+    message_id: str
+    recipient_wa_id: str
+    status: Literal["sent", "delivered", "read", "played", "failed"]
+    timestamp: datetime
+    conversation_id: str | None = None
+    origin: str | None = None  # marketing/utility/service/...
+    pricing_category: str | None = None
+    billable: bool | None = None
     errors: tuple["ApiError", ...] = ()
 
-@dataclass(frozen=True)
-class MarketingPreference:   # user_preferences webhook
-    line: LineId; wa_id: str; value: Literal["stop", "resume"]; timestamp: datetime
 
 @dataclass(frozen=True)
-class AccountEvent:          # account_update / phone_number_quality_update / business_capability_update
-    waba_id: str; field: str; event: str | None; payload: dict
+class MarketingPreference:  # user_preferences webhook
+    line: LineId
+    wa_id: str
+    value: Literal["stop", "resume"]
+    timestamp: datetime
+
+
+@dataclass(frozen=True)
+class AccountEvent:  # account_update / phone_number_quality_update / business_capability_update
+    waba_id: str
+    field: str
+    event: str | None
+    payload: dict
+
 
 WebhookEvent = InboundMessage | StatusEvent | MarketingPreference | AccountEvent
 
+
 @dataclass(frozen=True)
 class ApiError(Exception):
-    code: int; details: str; fbtrace_id: str | None = None
-    category: Literal["AUTH", "TRANSIENT", "RATE_LIMIT", "WINDOW_CLOSED", "QUALITY_BLOCK",
-                      "ACCOUNT_LOCKED", "UNDELIVERABLE", "TEMPLATE_INVALID", "BAD_REQUEST"] = "BAD_REQUEST"
+    code: int
+    details: str
+    fbtrace_id: str | None = None
+    category: Literal[
+        "AUTH",
+        "TRANSIENT",
+        "RATE_LIMIT",
+        "WINDOW_CLOSED",
+        "QUALITY_BLOCK",
+        "ACCOUNT_LOCKED",
+        "UNDELIVERABLE",
+        "TEMPLATE_INVALID",
+        "BAD_REQUEST",
+    ] = "BAD_REQUEST"
     retry_after_s: int | None = None
+
 
 @dataclass(frozen=True)
 class SendResult:
-    message_id: str; wa_id: str
+    message_id: str
+    wa_id: str
     message_status: Literal["accepted", "held_for_quality_assessment", "paused"]
+
 
 @dataclass(frozen=True)
 class DownloadedMedia:
-    media_id: str; mime_type: str; data: bytes; sha256_verified: bool
+    media_id: str
+    mime_type: str
+    data: bytes
+    sha256_verified: bool
+
 
 def parse_webhook(body: bytes, signature: str, *, app_secret: str) -> list[WebhookEvent]:
     """Verify X-Hub-Signature-256 over the RAW body (raise SignatureError), parse every
     entry[].changes[], return events in payload order. Pure; no I/O; safe to call twice."""
 
+
 class WhatsAppPort(Protocol):
-    async def send_text(self, line: LineId, to: str, body: str, *,
-                        reply_to: str | None = None, preview_url: bool = False) -> SendResult: ...
-    async def send_template(self, line: LineId, to: str, name: str, language: str,
-                            components: list[dict], *, category: Literal["utility", "marketing"]) -> SendResult: ...
-    async def send_audio(self, line: LineId, to: str, ogg_opus: bytes, *,
-                         reply_to: str | None = None) -> SendResult: ...   # upload, then send voice=true
+    async def send_text(
+        self,
+        line: LineId,
+        to: str,
+        body: str,
+        *,
+        reply_to: str | None = None,
+        preview_url: bool = False,
+    ) -> SendResult: ...
+    async def send_template(
+        self,
+        line: LineId,
+        to: str,
+        name: str,
+        language: str,
+        components: list[dict],
+        *,
+        category: Literal["utility", "marketing"],
+    ) -> SendResult: ...
+    async def send_audio(
+        self, line: LineId, to: str, ogg_opus: bytes, *, reply_to: str | None = None
+    ) -> SendResult: ...  # upload, then send voice=true
     async def mark_read(self, line: LineId, message_id: str, *, typing: bool = False) -> None: ...
     async def download_media(self, line: LineId, media_id: str) -> DownloadedMedia: ...
-    async def line_health(self, line: LineId) -> dict: ...   # quality_rating, status, name_status, tier
+    async def line_health(
+        self, line: LineId
+    ) -> dict: ...  # quality_rating, status, name_status, tier
 ```
 `parse_webhook` returns `WebhookEvent`, not only `InboundMessage`, because statuses, stops and account
 events feed the block-rate and kill-switch logic; the app secret is injected so it stays pure. The port

@@ -136,76 +136,195 @@ from enum import IntEnum, StrEnum
 from typing import Any, Literal, NewType
 from pydantic import BaseModel
 
-Ulid = NewType("Ulid", str)                  # 26-char Crockford ULID, minted by IdGenerator
-CoatId = NewType("CoatId", str)              # coat slug, e.g. "buzz-avenue" (config/coats/<slug>.yaml)
-Hash = NewType("Hash", str)                  # "sha256:<hex>" (content) or "hmac:<hex>" (keyed, Tier 2)
-Channel = NewType("Channel", str)            # validated against channels.yaml at load; constants below
-ActionCategory = NewType("ActionCategory", str)   # validated against capabilities.yaml + permissions.yaml at load
-BudgetHolder = NewType("BudgetHolder", str)  # keys of spend_tiers.monthly_cap: "operator", "assistant_logistics",
-                                             # "ai_models_within_operator", later "subagent:<id>"
+Ulid = NewType("Ulid", str)  # 26-char Crockford ULID, minted by IdGenerator
+CoatId = NewType("CoatId", str)  # coat slug, e.g. "buzz-avenue" (config/coats/<slug>.yaml)
+Hash = NewType("Hash", str)  # "sha256:<hex>" (content) or "hmac:<hex>" (keyed, Tier 2)
+Channel = NewType("Channel", str)  # validated against channels.yaml at load; constants below
+ActionCategory = NewType(
+    "ActionCategory", str
+)  # validated against capabilities.yaml + permissions.yaml at load
+BudgetHolder = NewType(
+    "BudgetHolder", str
+)  # keys of spend_tiers.monthly_cap: "operator", "assistant_logistics",
+# "ai_models_within_operator", later "subagent:<id>"
 
 # Channel constants (phase 0 set). New channels are yaml rows plus a constant where code must route them.
-OWNER_WHATSAPP = Channel("owner_whatsapp"); COAT_WHATSAPP = Channel("coat_whatsapp")
-COAT_EMAIL = Channel("coat_email"); OWNER_MAILBOX = Channel("owner_mailbox"); STAFF_LINE = Channel("staff_line")
-PHONE_NOTIFICATION = Channel("phone_notification"); SECOND_CHANNEL = Channel("second_channel")
-TIMER = Channel("timer"); INTERNAL = Channel("internal")          # approvals, handoffs, read-back re-entries
+OWNER_WHATSAPP = Channel("owner_whatsapp")
+COAT_WHATSAPP = Channel("coat_whatsapp")
+COAT_EMAIL = Channel("coat_email")
+OWNER_MAILBOX = Channel("owner_mailbox")
+STAFF_LINE = Channel("staff_line")
+PHONE_NOTIFICATION = Channel("phone_notification")
+SECOND_CHANNEL = Channel("second_channel")
+TIMER = Channel("timer")
+INTERNAL = Channel("internal")  # approvals, handoffs, read-back re-entries
 PHASE0_CHANNELS: frozenset[Channel]
 
+
 class Desk(StrEnum):
-    OPERATOR = "operator"; ASSISTANT = "assistant"; GOVERNANCE = "governance"
+    OPERATOR = "operator"
+    ASSISTANT = "assistant"
+    GOVERNANCE = "governance"
+
+
 class DeskScope(StrEnum):
     """ToolSpec.desk (§7 'Desk' column)."""
-    OPERATOR = "operator"; ASSISTANT = "assistant"; BOTH = "both"; GOVERNANCE = "governance"
+
+    OPERATOR = "operator"
+    ASSISTANT = "assistant"
+    BOTH = "both"
+    GOVERNANCE = "governance"
+
+
 class ActionTier(StrEnum):
-    A = "A"; N = "N"; K = "K"
+    A = "A"
+    N = "N"
+    K = "K"
+
     @staticmethod
-    def highest(*tiers: "ActionTier") -> "ActionTier": ...   # A < N < K; TierResolver only ever raises
+    def highest(
+        *tiers: "ActionTier",
+    ) -> "ActionTier": ...  # A < N < K; TierResolver only ever raises
+
+
 class DataTier(IntEnum):
-    T0 = 0; T1 = 1; T2 = 2; T3 = 3
+    T0 = 0
+    T1 = 1
+    T2 = 2
+    T3 = 3
+
+
 class Authority(StrEnum):
     """§2: only the owner commands; staff request; everything else is data."""
-    OWNER = "owner"; STAFF_REQUEST = "staff_request"; DATA = "data"; SYSTEM = "system"
+
+    OWNER = "owner"
+    STAFF_REQUEST = "staff_request"
+    DATA = "data"
+    SYSTEM = "system"
+
+
 class Origin(StrEnum):
-    TEXT = "text"; VOICE = "voice"; SYSTEM = "system"
+    TEXT = "text"
+    VOICE = "voice"
+    SYSTEM = "system"
+
+
 class SourceKind(StrEnum):
-    WHATSAPP = "whatsapp"; EMAIL = "email"; PHONE_NOTIFICATION = "phone_notification"; TIMER = "timer"
-    APPROVAL_DECISION = "approval_decision"; HANDOFF = "handoff"; SECOND_CHANNEL = "second_channel"
-    STAFF_LINE = "staff_line"; READBACK = "readback"
-class EventKind(StrEnum):
-    MESSAGE = "message"; VOICE_NOTE = "voice_note"; NOTIFICATION = "notification"; TIMER = "timer"
-    APPROVAL = "approval"; HANDOFF = "handoff"; SECOND_CHANNEL = "second_channel"; STAFF_REQUEST = "staff_request"
+    WHATSAPP = "whatsapp"
+    EMAIL = "email"
+    PHONE_NOTIFICATION = "phone_notification"
+    TIMER = "timer"
+    APPROVAL_DECISION = "approval_decision"
+    HANDOFF = "handoff"
+    SECOND_CHANNEL = "second_channel"
+    STAFF_LINE = "staff_line"
     READBACK = "readback"
+
+
+class EventKind(StrEnum):
+    MESSAGE = "message"
+    VOICE_NOTE = "voice_note"
+    NOTIFICATION = "notification"
+    TIMER = "timer"
+    APPROVAL = "approval"
+    HANDOFF = "handoff"
+    SECOND_CHANNEL = "second_channel"
+    STAFF_REQUEST = "staff_request"
+    READBACK = "readback"
+
+
 class Actor(StrEnum):
-    NOUR = "nour"; SUBAGENT = "subagent"; OWNER = "owner"; AUDITOR = "auditor"; SYSTEM = "system"; DEPUTY = "deputy"
+    NOUR = "nour"
+    SUBAGENT = "subagent"
+    OWNER = "owner"
+    AUDITOR = "auditor"
+    SYSTEM = "system"
+    DEPUTY = "deputy"
+
+
 class ActionStatus(StrEnum):
     """Audit `status` (§12). OPENED is the write-ahead row; every other value is terminal."""
-    OPENED = "opened"; EXECUTED = "executed"; NOTIFIED = "notified"; QUEUED = "queued"; REFUSED = "refused"
-    DECLINED = "declined"; FAILED = "failed"; READBACK_PENDING = "readback_pending"; FROZEN = "frozen"
-    DEFERRED = "deferred"; DRY_RUN = "dry_run"; OBSERVED = "observed"; RELEASED = "released"
+
+    OPENED = "opened"
+    EXECUTED = "executed"
+    NOTIFIED = "notified"
+    QUEUED = "queued"
+    REFUSED = "refused"
+    DECLINED = "declined"
+    FAILED = "failed"
+    READBACK_PENDING = "readback_pending"
+    FROZEN = "frozen"
+    DEFERRED = "deferred"
+    DRY_RUN = "dry_run"
+    OBSERVED = "observed"
+    RELEASED = "released"
+
+
 class RefusalCode(StrEnum):
-    NO_COAT = "no_coat"; UNKNOWN_COAT = "unknown_coat"; DESK_NOT_ALLOWED_FOR_COAT = "desk_not_allowed_for_coat"
-    ACTIVITY_NOT_ALLOWED = "activity_not_allowed"; TOOL_NOT_IN_DESK = "tool_not_in_desk"; UNKNOWN_TOOL = "unknown_tool"
-    BAD_ARGS = "bad_args"; BAD_REASON = "bad_reason"; FROZEN = "frozen"; LEAK = "leak"; NOT_IN_PHASE = "not_in_phase"
+    NO_COAT = "no_coat"
+    UNKNOWN_COAT = "unknown_coat"
+    DESK_NOT_ALLOWED_FOR_COAT = "desk_not_allowed_for_coat"
+    ACTIVITY_NOT_ALLOWED = "activity_not_allowed"
+    TOOL_NOT_IN_DESK = "tool_not_in_desk"
+    UNKNOWN_TOOL = "unknown_tool"
+    BAD_ARGS = "bad_args"
+    BAD_REASON = "bad_reason"
+    FROZEN = "frozen"
+    LEAK = "leak"
+    NOT_IN_PHASE = "not_in_phase"
     DNC = "do_not_contact"
+
+
 class FreezeScope(StrEnum):
-    HIGH_IMPACT = "high_impact"; AUTONOMOUS = "autonomous"; CHANNEL = "channel"; COAT_OUTGOING = "coat_outgoing"
-    VAULT_SHARING = "vault_sharing"; CATEGORY = "category"; ALL_OUTBOUND = "all_outbound"
+    HIGH_IMPACT = "high_impact"
+    AUTONOMOUS = "autonomous"
+    CHANNEL = "channel"
+    COAT_OUTGOING = "coat_outgoing"
+    VAULT_SHARING = "vault_sharing"
+    CATEGORY = "category"
+    ALL_OUTBOUND = "all_outbound"
+
+
 class IncidentType(StrEnum):
-    SUSPICIOUS_PAYMENT = "suspicious_payment"; BAD_MESSAGE = "bad_message"; DATA_LEAK = "data_leak"
-    CHANNEL_BANNED = "channel_banned"; INSTRUCTION_IN_CONTENT = "instruction_in_content"; MODEL_OUTAGE = "model_outage"
-    AUTH_FAILURE = "auth_failure"; IMPERSONATION = "impersonation"; WATCHDOG_LOOP = "watchdog_loop"
-    WATCHDOG_SPEND = "watchdog_spend"; WATCHDOG_FAILED_SENDS = "watchdog_failed_sends"; KILL_SWITCH = "kill_switch"
+    SUSPICIOUS_PAYMENT = "suspicious_payment"
+    BAD_MESSAGE = "bad_message"
+    DATA_LEAK = "data_leak"
+    CHANNEL_BANNED = "channel_banned"
+    INSTRUCTION_IN_CONTENT = "instruction_in_content"
+    MODEL_OUTAGE = "model_outage"
+    AUTH_FAILURE = "auth_failure"
+    IMPERSONATION = "impersonation"
+    WATCHDOG_LOOP = "watchdog_loop"
+    WATCHDOG_SPEND = "watchdog_spend"
+    WATCHDOG_FAILED_SENDS = "watchdog_failed_sends"
+    KILL_SWITCH = "kill_switch"
+
+
 class MemoryKind(StrEnum):
-    EPISODIC = "episodic"; SEMANTIC = "semantic"; PROCEDURAL = "procedural"; OWNER_PROFILE = "owner_profile"
+    EPISODIC = "episodic"
+    SEMANTIC = "semantic"
+    PROCEDURAL = "procedural"
+    OWNER_PROFILE = "owner_profile"
+
+
 class PassphraseOutcome(StrEnum):
     """§6 §13: every way a passphrase attempt can go; one row each in passphrase_attempt."""
-    OK = "ok"; WRONG = "wrong"; SPOKEN = "spoken"; WRONG_THREAD = "wrong_thread"
-    SPOOFED_NUMBER = "spoofed_number"; SPOOF_SUSPECTED = "spoof_suspected"; REPLAYED = "replayed"
+
+    OK = "ok"
+    WRONG = "wrong"
+    SPOKEN = "spoken"
+    WRONG_THREAD = "wrong_thread"
+    SPOOFED_NUMBER = "spoofed_number"
+    SPOOF_SUSPECTED = "spoof_suspected"
+    REPLAYED = "replayed"
+
 
 class Money(BaseModel, frozen=True):
     """§10: integer minor units; AED only in phase 0 (currency validated against spend_tiers.currency)."""
+
     fils: int
     currency: str = "AED"
+
     @classmethod
     def aed(cls, amount: Decimal | int | str) -> "Money": ...
     @classmethod
@@ -213,19 +332,27 @@ class Money(BaseModel, frozen=True):
     def as_decimal(self) -> Decimal: ...
     def __add__(self, other: "Money") -> "Money": ...
     def __sub__(self, other: "Money") -> "Money": ...
-    def __lt__(self, other: "Money") -> bool: ...     # __le__, __gt__, __ge__ likewise; currency mismatch raises
+    def __lt__(
+        self, other: "Money"
+    ) -> bool: ...  # __le__, __gt__, __ge__ likewise; currency mismatch raises
     def times(self, factor: int) -> "Money": ...
+
 
 class Reason(str):
     """§2 §12: the one-sentence reason. 3..240 chars, no newline, at most one sentence terminator
     ('.', '!', '?', '؟', '۔') and it must be the last character if present. Raises ReasonError."""
+
     def __new__(cls, text: str) -> "Reason": ...
     @classmethod
-    def coerce(cls, text: str | None) -> "Reason | None": ...   # trims, cuts at the first terminator; None if empty
+    def coerce(
+        cls, text: str | None
+    ) -> "Reason | None": ...  # trims, cuts at the first terminator; None if empty
+
 
 class SafeStr(str):
     """A str that passed LeakGuard. Constructible only by LeakGuard.safe()/redact() (constructor checks
     a module-private token); any other construction raises Tier2LeakError. Every sink Nour writes is typed on it."""
+
     def __new__(cls, text: str, *, _minted_by: object) -> "SafeStr": ...
 ```
 
@@ -308,23 +435,48 @@ def chain_hash(prev: str, entry: bytes) -> str: ...       # §12 audit chain
 ```python
 # nour/core/leakguard.py
 class LeakHit(BaseModel, frozen=True):
-    label: str; span: tuple[int, int]                     # label = "vault:buzz-avenue/banking/receiving#iban", "passphrase", "card:operator"
+    label: str
+    span: tuple[
+        int, int
+    ]  # label = "vault:buzz-avenue/banking/receiving#iban", "passphrase", "card:operator"
+
+
 class ShapeHit(BaseModel, frozen=True):
-    kind: Literal["iban", "pan", "passport"]; span: tuple[int, int]
+    kind: Literal["iban", "pan", "passport"]
+    span: tuple[int, int]
+
+
 class LeakGuard:
     """§2 §6 §10 §11: value-based scrubber. Holds keyed HMAC fingerprints of every Tier 2 value, every card PAN
     and the passphrase; never plaintext. Primary control is Tier2Value's type (3.3b); this is defence in depth
     that also catches the passphrase in ANY position of any text."""
+
     def __init__(self, hmac_key: bytes) -> None: ...
-    def fingerprint(self, value: str) -> bytes: ...       # HMAC(key, normalised(value)); normalisation strips spaces/dashes, upper-cases
+    def fingerprint(
+        self, value: str
+    ) -> bytes: ...  # HMAC(key, normalised(value)); normalisation strips spaces/dashes, upper-cases
     def register_fingerprint(self, fp: bytes, label: str) -> None: ...
-    def register_plaintext_once(self, value: str, label: str) -> bytes: ...   # hashes immediately, discards value
-    def scan(self, text: str) -> list[LeakHit]: ...       # candidates: whole text, each line, whitespace tokens, digit runs >= 6,
-                                                          # IBAN-shaped tokens with separators removed; constant-time compare
-    def safe(self, text: str) -> SafeStr: ...             # raises Tier2LeakError on any hit — for sinks Nour writes
-    def redact(self, text: str) -> tuple[SafeStr, list[LeakHit]]: ...   # replaces hits with "[<label> …last4]" — for observed text shown to the model
-    def safe_mapping(self, obj: Mapping[str, Any]) -> dict[str, Any]: ...  # recursive; every str → SafeStr; raises on hit
+    def register_plaintext_once(
+        self, value: str, label: str
+    ) -> bytes: ...  # hashes immediately, discards value
+    def scan(self, text: str) -> list[LeakHit]:
+        ...  # candidates: whole text, each line, whitespace tokens, digit runs >= 6,
+        # IBAN-shaped tokens with separators removed; constant-time compare
+
+    def safe(
+        self, text: str
+    ) -> SafeStr: ...  # raises Tier2LeakError on any hit — for sinks Nour writes
+    def redact(
+        self, text: str
+    ) -> tuple[
+        SafeStr, list[LeakHit]
+    ]: ...  # replaces hits with "[<label> …last4]" — for observed text shown to the model
+    def safe_mapping(
+        self, obj: Mapping[str, Any]
+    ) -> dict[str, Any]: ...  # recursive; every str → SafeStr; raises on hit
     def labels(self) -> frozenset[str]: ...
+
+
 def shape_hits(text: str) -> list[ShapeHit]:
     """Advisory only (§13 auditor flag, InjectionScanner `bank_details` pattern). Never blocks rendering."""
 ```
@@ -333,34 +485,55 @@ def shape_hits(text: str) -> list[ShapeHit]:
 # nour/core/tier2.py
 class SecretRef(BaseModel, frozen=True):
     """§10: what the model, briefs, memory and logs may hold instead of a Tier 2 value."""
-    uri: str                                              # "vault://buzz-avenue/banking/receiving#iban"
+
+    uri: str  # "vault://buzz-avenue/banking/receiving#iban"
     last4: str
-    content_fp: Hash                                      # keyed_hash(leakguard_key, value): what audit rows store
+    content_fp: Hash  # keyed_hash(leakguard_key, value): what audit rows store
+
     @property
     def coat_id(self) -> CoatId | None: ...
     @property
-    def path(self) -> str: ...                            # "banking/receiving#iban"
-    def placeholder(self) -> str: ...                     # "{{bank.buzz-avenue.iban}}"
-    def __str__(self) -> str: ...                         # "vault://…#iban (…1234)"
+    def path(self) -> str: ...  # "banking/receiving#iban"
+    def placeholder(self) -> str: ...  # "{{bank.buzz-avenue.iban}}"
+    def __str__(self) -> str: ...  # "vault://…#iban (…1234)"
+
+
 class RenderSink(Protocol):
     def write(self, chunk: str) -> None: ...
+
+
 class RenderWitness:
     """§10 §11: proof that a reveal happens inside the document renderer or the phase-3 private model path.
     Constructor takes a module-private seal; tests/unit/test_walls.py asserts `RenderWitness(` appears only in
     nour/vault/renderer.py."""
+
     __slots__ = ("purpose", "approval_id", "sink_id", "nonce")
-    purpose: str; approval_id: Ulid | None; sink_id: str; nonce: str
-    def __init__(self, purpose: str, approval_id: Ulid | None, sink_id: str, *, _seal: object) -> None: ...
+    purpose: str
+    approval_id: Ulid | None
+    sink_id: str
+    nonce: str
+
+    def __init__(
+        self, purpose: str, approval_id: Ulid | None, sink_id: str, *, _seal: object
+    ) -> None: ...
+
+
 class Tier2Value:
     """§6 §11: NOT a str. __str__, __repr__, __format__, __eq__, __hash__, __iter__, __len__, __reduce__,
     __getstate__ and pydantic schema generation all raise Tier2LeakError. The only egress is write_into()."""
+
     __slots__ = ("_ref", "_ciphertext", "_decrypt")
-    def __init__(self, ref: SecretRef, ciphertext: bytes, decrypt: Callable[[bytes], str], *, _seal: object) -> None: ...
+
+    def __init__(
+        self, ref: SecretRef, ciphertext: bytes, decrypt: Callable[[bytes], str], *, _seal: object
+    ) -> None: ...
     @property
     def ref(self) -> SecretRef: ...
     @property
     def last4(self) -> str: ...
-    def write_into(self, witness: RenderWitness, sink: RenderSink) -> int: ...   # returns chars written; never returns the text
+    def write_into(
+        self, witness: RenderWitness, sink: RenderSink
+    ) -> int: ...  # returns chars written; never returns the text
 ```
 
 ### 3.4 Ports (`nour/core/ports.py`) — all `typing.Protocol`; every side-effecting method takes a `PortCall` first
@@ -369,294 +542,771 @@ class Tier2Value:
 class PortCall(BaseModel, frozen=True):
     """§12 §16: the audit id as a capability at the port boundary. Minted by AuditLog.span (opened row) and
     carried in ExecContext; a port call without one is a type error. dry_run is §8 dry-run mode."""
-    audit_id: Ulid; desk: Desk; coat_id: CoatId | None; dry_run: bool = False
+
+    audit_id: Ulid
+    desk: Desk
+    coat_id: CoatId | None
+    dry_run: bool = False
+
+
 class RecordedCall(BaseModel, frozen=True):
-    port: str; method: str; audit_id: Ulid | None; args_hash: Hash; at: datetime; dry_run: bool
+    port: str
+    method: str
+    audit_id: Ulid | None
+    args_hash: Hash
+    at: datetime
+    dry_run: bool
+
+
 class CallLog:
     """Shared by every fake (and by real adapters in staging): one list of every side-effecting call."""
+
     calls: list[RecordedCall]
+
     def record(self, port: str, method: str, call: PortCall | None, **args: Any) -> None: ...
     def without_audit(self) -> list[RecordedCall]: ...
     def by_audit_id(self) -> dict[Ulid, list[RecordedCall]]: ...
+
+
 class SendReceipt(BaseModel, frozen=True):
-    provider_msg_id: str | None; accepted: bool; error: str | None = None; dry_run: bool = False
+    provider_msg_id: str | None
+    accepted: bool
+    error: str | None = None
+    dry_run: bool = False
+
 
 # WhatsApp (§9 owner thread + company lines)
 class InboundWhatsApp(BaseModel, frozen=True):
-    provider_msg_id: str; line_id: str; sender: str; sender_display: str | None; text: str | None
-    audio_ref: str | None; at: datetime; signature_valid: bool
+    provider_msg_id: str
+    line_id: str
+    sender: str
+    sender_display: str | None
+    text: str | None
+    audio_ref: str | None
+    at: datetime
+    signature_valid: bool
+
+
 class OutboundWhatsApp(BaseModel, frozen=True):
-    line_id: str; to: str; text: SafeStr | None = None; audio_ref: str | None = None; template: str | None = None
+    line_id: str
+    to: str
+    text: SafeStr | None = None
+    audio_ref: str | None = None
+    template: str | None = None
+
+
 class WhatsAppPort(Protocol):
     def verify_signature(self, raw_body: bytes, header: str) -> bool: ...
-    def parse_webhook(self, payload: dict[str, Any], signature_valid: bool) -> list[InboundWhatsApp]: ...
-    def pull_inbound(self) -> list[InboundWhatsApp]: ...                    # polling adapters and fakes
+    def parse_webhook(
+        self, payload: dict[str, Any], signature_valid: bool
+    ) -> list[InboundWhatsApp]: ...
+    def pull_inbound(self) -> list[InboundWhatsApp]: ...  # polling adapters and fakes
     def send(self, call: PortCall, msg: OutboundWhatsApp) -> SendReceipt: ...
     def fetch_media(self, audio_ref: str) -> bytes: ...
 
+
 # Mailboxes (§5 §9): two ports, two credential sets. The Operator process can construct a CoatMailboxPort only.
 class Attachment(BaseModel, frozen=True):
-    ref: str; name: str; mime: str; size: int; text: str | None = None     # text extracted by the adapter (PDF/plain)
+    ref: str
+    name: str
+    mime: str
+    size: int
+    text: str | None = None  # text extracted by the adapter (PDF/plain)
+
+
 class InboundEmail(BaseModel, frozen=True):
-    provider_msg_id: str; mailbox: str; sender: str; to: tuple[str, ...]; subject: str; body_text: str
-    attachments: tuple[Attachment, ...] = (); headers: Mapping[str, str] = {}; at: datetime; dkim_pass: bool
+    provider_msg_id: str
+    mailbox: str
+    sender: str
+    to: tuple[str, ...]
+    subject: str
+    body_text: str
+    attachments: tuple[Attachment, ...] = ()
+    headers: Mapping[str, str] = {}
+    at: datetime
+    dkim_pass: bool
+
+
 class DraftEmail(BaseModel, frozen=True):
-    mailbox: str; to: tuple[str, ...]; subject: SafeStr; body: SafeStr; in_reply_to: str | None = None
+    mailbox: str
+    to: tuple[str, ...]
+    subject: SafeStr
+    body: SafeStr
+    in_reply_to: str | None = None
     attachment_refs: tuple[str, ...] = ()
+
+
 class MailboxPort(Protocol):
     kind: Literal["coat", "owner"]
+
     def pull_inbound(self, mailbox: str, since: datetime) -> list[InboundEmail]: ...
     def create_draft(self, call: PortCall, draft: DraftEmail) -> str: ...
     def send(self, call: PortCall, draft_id: str) -> SendReceipt: ...
-    def scopes(self, mailbox: str) -> frozenset[str]: ...                   # §9: must be ⊆ {"read","draft","send"}
-class CoatMailboxPort(MailboxPort, Protocol):  kind: Literal["coat"]
-class OwnerMailboxPort(MailboxPort, Protocol): kind: Literal["owner"]      # built only from assistant/ credentials
+    def scopes(self, mailbox: str) -> frozenset[str]: ...  # §9: must be ⊆ {"read","draft","send"}
+
+
+class CoatMailboxPort(MailboxPort, Protocol):
+    kind: Literal["coat"]
+
+
+class OwnerMailboxPort(MailboxPort, Protocol):
+    kind: Literal["owner"]  # built only from assistant/ credentials
+
 
 # Phone body (§4 §13; phase 0 = interface + fake)
 class PhoneNotification(BaseModel, frozen=True):
-    id: str; app: str; title: str; text: str; at: datetime; device_id: str
+    id: str
+    app: str
+    title: str
+    text: str
+    at: datetime
+    device_id: str
+
+
 class PhoneBodyPort(Protocol):
     def pull_notifications(self) -> list[PhoneNotification]: ...
     def is_online(self) -> bool: ...
     def wipe(self, call: PortCall) -> None: ...
 
+
 # Card issuer (§10): the cap lives in the issuer, keyed by BudgetHolder (not Desk) so the AI budget line and
 # phase-3 sub-agent caps fit without a signature change.
 class CardAuthorization(BaseModel, frozen=True):
     """Minted only by a CardIssuerPort implementation; Ledger.record_spend requires one."""
-    auth_ref: str; card_ref: str; holder: BudgetHolder; amount: Money; merchant: str; at: datetime
+
+    auth_ref: str
+    card_ref: str
+    holder: BudgetHolder
+    amount: Money
+    merchant: str
+    at: datetime
+
+
 class CardDecision(BaseModel, frozen=True):
-    approved: bool; authorization: CardAuthorization | None; decline_reason: str | None; remaining: Money
+    approved: bool
+    authorization: CardAuthorization | None
+    decline_reason: str | None
+    remaining: Money
+
+
 class CardIssuerPort(Protocol):
     def issue(self, holder: BudgetHolder, monthly_cap: Money) -> str: ...  # card_ref
-    def authorize(self, call: PortCall, card_ref: str, amount: Money, merchant: str) -> CardDecision: ...
+    def authorize(
+        self, call: PortCall, card_ref: str, amount: Money, merchant: str
+    ) -> CardDecision: ...
     def freeze(self, call: PortCall, card_ref: str) -> None: ...
     def unfreeze(self, call: PortCall, card_ref: str) -> None: ...
     def month_total(self, card_ref: str, month: date) -> Money: ...
     def is_frozen(self, card_ref: str) -> bool: ...
 
+
 # Speech (§9)
 class Transcript(BaseModel, frozen=True):
-    text: str; language: str; confidence: float; engine: str
+    text: str
+    language: str
+    confidence: float
+    engine: str
+
+
 class SttPort(Protocol):
     engine: str
-    def transcribe(self, audio: bytes, *, language: str, vocabulary: Sequence[str]) -> Transcript: ...
+
+    def transcribe(
+        self, audio: bytes, *, language: str, vocabulary: Sequence[str]
+    ) -> Transcript: ...
+
+
 class TtsPort(Protocol):
     def synthesize(self, call: PortCall, text: SafeStr) -> bytes: ...
 
+
 # Models (§4 §12 §14)
 class ModelRole(StrEnum):
-    PRIMARY = "primary"; FALLBACK = "fallback"; CRITIC = "critic"; AUDITOR = "auditor"; PRIVATE_TIER2 = "private_tier2"
+    PRIMARY = "primary"
+    FALLBACK = "fallback"
+    CRITIC = "critic"
+    AUDITOR = "auditor"
+    PRIVATE_TIER2 = "private_tier2"
+
+
 class ToolSchema(BaseModel, frozen=True):
-    name: str; description: str; parameters: dict[str, Any]
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
 class ModelMessage(BaseModel, frozen=True):
-    role: Literal["user", "assistant", "tool"]; content: SafeStr; tool_call_id: str | None = None
+    role: Literal["user", "assistant", "tool"]
+    content: SafeStr
+    tool_call_id: str | None = None
+
+
 class ModelRequest(BaseModel, frozen=True):
-    role: ModelRole; desk: Desk; system: SafeStr; messages: list[ModelMessage]; tools: list[ToolSchema]
-    max_tokens: int = 4096; metadata: dict[str, str] = {}
+    role: ModelRole
+    desk: Desk
+    system: SafeStr
+    messages: list[ModelMessage]
+    tools: list[ToolSchema]
+    max_tokens: int = 4096
+    metadata: dict[str, str] = {}
+
+
 class ModelToolCall(BaseModel, frozen=True):
     """The model tool-call JSON contract (§18 output contract), fixed here for the prompt, parser, fakes and
     replayer: `arguments` MUST carry `reason` (one sentence) and MAY carry `coat`, `counterpart`, `amount_aed`,
     `tier`, `data_tier_touched` plus the tool's own args. `tier`/`data_tier_touched` are logged, never routed on."""
-    id: str; name: str; arguments: dict[str, Any]
+
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
 class ModelUsage(BaseModel, frozen=True):
-    input_tokens: int; output_tokens: int; cost_fils: int
+    input_tokens: int
+    output_tokens: int
+    cost_fils: int
+
+
 class ModelResponse(BaseModel, frozen=True):
-    text: str | None; tool_calls: list[ModelToolCall]; vendor: str; model: str; usage: ModelUsage
+    text: str | None
+    tool_calls: list[ModelToolCall]
+    vendor: str
+    model: str
+    usage: ModelUsage
+
+
 class ModelPort(Protocol):
-    vendor: str; model: str
+    vendor: str
+    model: str
+
     def complete(self, req: ModelRequest) -> ModelResponse: ...
+
+
 class PrivateModelRequest(BaseModel, frozen=True):
     """§11 phase 3: refs in, never values; the adapter reveals them under the witness in region."""
-    refs: tuple[SecretRef, ...]; instruction: SafeStr; max_tokens: int = 2048
+
+    refs: tuple[SecretRef, ...]
+    instruction: SafeStr
+    max_tokens: int = 2048
+
+
 class PrivateModelResult(BaseModel, frozen=True):
-    summary: SafeStr; output_fp: Hash
+    summary: SafeStr
+    output_fp: Hash
+
+
 class Tier2ModelPort(Protocol):
-    def complete_private(self, req: PrivateModelRequest, witness: RenderWitness) -> PrivateModelResult: ...
+    def complete_private(
+        self, req: PrivateModelRequest, witness: RenderWitness
+    ) -> PrivateModelResult: ...
+
 
 # Secrets (§13): a desk gets a port bound to its prefix; it cannot name another scope.
 class SecretsPort(Protocol):
     prefix: str
-    def get(self, name: str) -> bytes: ...                                   # name must start with prefix → else ScopeViolation
-    def scoped(self, prefix: str) -> "SecretsPort": ...                      # narrows only (prefix must extend self.prefix)
+
+    def get(self, name: str) -> bytes: ...  # name must start with prefix → else ScopeViolation
+    def scoped(
+        self, prefix: str
+    ) -> "SecretsPort": ...  # narrows only (prefix must extend self.prefix)
     def revoke_all(self, call: PortCall, prefixes: Sequence[str]) -> list[str]: ...
     def rotate(self, call: PortCall, name: str) -> None: ...
+
 
 # Object storage (§11)
 class ObjectStoragePort(Protocol):
     def put(self, call: PortCall, key: str, data: bytes, *, content_type: str) -> str: ...
     def get(self, key: str) -> bytes: ...
     def delete(self, call: PortCall, key: str) -> None: ...
-    def signed_link(self, call: PortCall, key: str, ttl: timedelta, recipient: str) -> str: ...   # §11 recipient-bound
+    def signed_link(
+        self, call: PortCall, key: str, ttl: timedelta, recipient: str
+    ) -> str: ...  # §11 recipient-bound
+
 
 # Bank feed (§10, phase 2 body; shape now)
 class BankLine(BaseModel, frozen=True):
-    ref: str; account_ref: str; at: datetime; amount: Money; counterpart_last4: str; memo: str
+    ref: str
+    account_ref: str
+    at: datetime
+    amount: Money
+    counterpart_last4: str
+    memo: str
+
+
 class BankFeedPort(Protocol):
     def lines(self, coat_id: CoatId, since: datetime) -> list[BankLine]: ...
     def balance(self, coat_id: CoatId) -> Money: ...
 
+
 # Second channel (§6 §12)
 class SecondChannelMessage(BaseModel, frozen=True):
-    sender: str; text: str; token: str | None; at: datetime
+    sender: str
+    text: str
+    token: str | None
+    at: datetime
+
+
 class SecondChannelPort(Protocol):
-    def send_confirmation(self, call: PortCall, purpose: str, token: str, summary: SafeStr) -> None: ...
-    def pull_messages(self) -> list[SecondChannelMessage]: ...               # confirmations AND the second kill path
+    def send_confirmation(
+        self, call: PortCall, purpose: str, token: str, summary: SafeStr
+    ) -> None: ...
+    def pull_messages(
+        self,
+    ) -> list[SecondChannelMessage]: ...  # confirmations AND the second kill path
     def send_alert(self, call: PortCall, text: SafeStr) -> None: ...
+
 
 # Vector index (§8)
 class IndexableText(BaseModel, frozen=True):
-    id: str; namespace: str; text: SafeStr; tier: Literal[DataTier.T0, DataTier.T1]; meta: dict[str, str]
+    id: str
+    namespace: str
+    text: SafeStr
+    tier: Literal[DataTier.T0, DataTier.T1]
+    meta: dict[str, str]
+
+
 class VectorHit(BaseModel, frozen=True):
-    id: str; score: float; meta: dict[str, str]
+    id: str
+    score: float
+    meta: dict[str, str]
+
+
 class VectorIndexPort(Protocol):
     def upsert(self, item: IndexableText) -> None: ...
     def search(self, namespace: str, query: str, k: int) -> list[VectorHit]: ...
     def delete(self, namespace: str, id: str) -> None: ...
 
+
 # Reserved phase 1–3 ports (one method each, with fakes) so Channel/EventKind are not reopened later
-class CalendarEvent(BaseModel, frozen=True): id: str; title: SafeStr; start: datetime; end: datetime
+class CalendarEvent(BaseModel, frozen=True):
+    id: str
+    title: SafeStr
+    start: datetime
+    end: datetime
+
+
 class CalendarPort(Protocol):
-    def list_events(self, calendar_id: str, start: datetime, end: datetime) -> list[CalendarEvent]: ...
+    def list_events(
+        self, calendar_id: str, start: datetime, end: datetime
+    ) -> list[CalendarEvent]: ...
+
+
 class TelephonyPort(Protocol):
     def place_call(self, call: PortCall, line_id: str, to: str, script: SafeStr) -> str: ...
-class SandboxResult(BaseModel, frozen=True): ok: bool; stdout: str; artifacts: tuple[str, ...]
+
+
+class SandboxResult(BaseModel, frozen=True):
+    ok: bool
+    stdout: str
+    artifacts: tuple[str, ...]
+
+
 class SandboxPort(Protocol):
     def run(self, call: PortCall, code: str, timeout_s: int) -> SandboxResult: ...
+
+
 class AdPlatformPort(Protocol):
     def set_budget(self, call: PortCall, campaign_ref: str, daily: Money) -> None: ...
+
 
 @dataclass
 class PortSet:
     """The port registry one process holds. `for_desk` is how the Operator process is built without the
     owner mailbox, the private model or the vault key (§5)."""
-    whatsapp: WhatsAppPort; coat_mail: CoatMailboxPort; owner_mail: OwnerMailboxPort | None
-    phone: PhoneBodyPort; card: CardIssuerPort; stt: SttPort; tts: TtsPort
-    models: Mapping[ModelRole, ModelPort]; private_model: Tier2ModelPort | None
-    secrets: SecretsPort; objects: ObjectStoragePort; bank: BankFeedPort; second: SecondChannelPort
-    vector: VectorIndexPort; calendar: CalendarPort; telephony: TelephonyPort; sandbox: SandboxPort
-    ads: AdPlatformPort; call_log: CallLog
-    def for_desk(self, token: DeskToken) -> "PortSet": ...   # OperatorToken: owner_mail=None, private_model=None,
-                                                            # secrets=secrets.scoped("operator/"); AssistantToken: scoped("assistant/")
+
+    whatsapp: WhatsAppPort
+    coat_mail: CoatMailboxPort
+    owner_mail: OwnerMailboxPort | None
+    phone: PhoneBodyPort
+    card: CardIssuerPort
+    stt: SttPort
+    tts: TtsPort
+    models: Mapping[ModelRole, ModelPort]
+    private_model: Tier2ModelPort | None
+    secrets: SecretsPort
+    objects: ObjectStoragePort
+    bank: BankFeedPort
+    second: SecondChannelPort
+    vector: VectorIndexPort
+    calendar: CalendarPort
+    telephony: TelephonyPort
+    sandbox: SandboxPort
+    ads: AdPlatformPort
+    call_log: CallLog
+
+    def for_desk(self, token: DeskToken) -> "PortSet":
+        ...  # OperatorToken: owner_mail=None, private_model=None,
+        # secrets=secrets.scoped("operator/"); AssistantToken: scoped("assistant/")
 ```
 
 ### 3.5 Contracts crossing wave boundaries (`nour/core/contracts.py`)
 
 ```python
 # --- inbound events (§4 Ingest/Authenticate) ---
-class WhatsAppPayload(BaseModel, frozen=True):        provider_msg_id: str; line_id: str; sender_display: str | None; audio_ref: str | None
-class EmailPayload(BaseModel, frozen=True):           provider_msg_id: str; mailbox: str; to: tuple[str, ...]; subject: str; attachments: tuple[Attachment, ...]; headers: Mapping[str, str]; dkim_pass: bool
-class PhoneNotificationPayload(BaseModel, frozen=True): app: str; title: str; device_id: str
-class TimerPayload(BaseModel, frozen=True):           timer_name: str; slot: datetime
-class ApprovalDecisionPayload(BaseModel, frozen=True): approval_id: Ulid; decision: Literal["approve", "reject"]; reason: str | None
-class HandoffPayload(BaseModel, frozen=True):         handoff_id: Ulid
-class SecondChannelPayload(BaseModel, frozen=True):   token: str | None
-class ReadbackPayload(BaseModel, frozen=True):        pending_id: Ulid
-PAYLOAD_MODELS: Mapping[SourceKind, type[BaseModel]]  # kind + validated JSON payload instead of one nullable column per kind
+class WhatsAppPayload(BaseModel, frozen=True):
+    provider_msg_id: str
+    line_id: str
+    sender_display: str | None
+    audio_ref: str | None
+
+
+class EmailPayload(BaseModel, frozen=True):
+    provider_msg_id: str
+    mailbox: str
+    to: tuple[str, ...]
+    subject: str
+    attachments: tuple[Attachment, ...]
+    headers: Mapping[str, str]
+    dkim_pass: bool
+
+
+class PhoneNotificationPayload(BaseModel, frozen=True):
+    app: str
+    title: str
+    device_id: str
+
+
+class TimerPayload(BaseModel, frozen=True):
+    timer_name: str
+    slot: datetime
+
+
+class ApprovalDecisionPayload(BaseModel, frozen=True):
+    approval_id: Ulid
+    decision: Literal["approve", "reject"]
+    reason: str | None
+
+
+class HandoffPayload(BaseModel, frozen=True):
+    handoff_id: Ulid
+
+
+class SecondChannelPayload(BaseModel, frozen=True):
+    token: str | None
+
+
+class ReadbackPayload(BaseModel, frozen=True):
+    pending_id: Ulid
+
+
+PAYLOAD_MODELS: Mapping[
+    SourceKind, type[BaseModel]
+]  # kind + validated JSON payload instead of one nullable column per kind
+
 
 class RawInbound(BaseModel, frozen=True):
     """One inbox_event row. `body` is ALREADY redacted by IngressRedactor; the attempt outcome rides along."""
-    id: Ulid; source_kind: SourceKind; channel: Channel; line_id: str | None; sender: str; origin: Origin
-    received_at: datetime; body: str | None; audio_ref: str | None; payload: dict[str, Any]
-    signature_valid: bool; passphrase_attempt: PassphraseOutcome | None; attempt_id: Ulid | None
+
+    id: Ulid
+    source_kind: SourceKind
+    channel: Channel
+    line_id: str | None
+    sender: str
+    origin: Origin
+    received_at: datetime
+    body: str | None
+    audio_ref: str | None
+    payload: dict[str, Any]
+    signature_valid: bool
+    passphrase_attempt: PassphraseOutcome | None
+    attempt_id: Ulid | None
+
+
 class RoutedInbound(BaseModel, frozen=True):
-    raw: RawInbound; desk: Desk; coat_id: CoatId | None; kind: EventKind; is_owner_thread: bool
+    raw: RawInbound
+    desk: Desk
+    coat_id: CoatId | None
+    kind: EventKind
+    is_owner_thread: bool
+
+
 class ObservedText(BaseModel, frozen=True):
     """Third-party content. Never carries authority; rendered inside <observed source=…> fences after LeakGuard.redact."""
-    text: str; source: str; mime: str = "text/plain"
+
+    text: str
+    source: str
+    mime: str = "text/plain"
+
+
 class FoundInstruction(BaseModel, frozen=True):
-    quote: str; location: str; mentions_money: bool; pattern: str
+    quote: str
+    location: str
+    mentions_money: bool
+    pattern: str
+
+
 class AuthStamp(BaseModel, frozen=True):
     """§4: set server-side before the model sees the event; signed so no other producer can mint an Event."""
-    owner_verified: bool; passphrase_verified: bool; readback_confirmed: bool; authority: Authority
-    attempt_id: Ulid | None; sig: bytes
+
+    owner_verified: bool
+    passphrase_verified: bool
+    readback_confirmed: bool
+    authority: Authority
+    attempt_id: Ulid | None
+    sig: bytes
+
+
 class AuthFlags(BaseModel, frozen=True):
     """What the prompt sees (no signature bytes)."""
-    owner_verified: bool; passphrase_verified: bool; authority: Authority; readback_confirmed: bool
+
+    owner_verified: bool
+    passphrase_verified: bool
+    authority: Authority
+    readback_confirmed: bool
+
+
 class Event(BaseModel, frozen=True):
-    id: Ulid; kind: EventKind; raw: RawInbound; desk: Desk; coat_id: CoatId | None; auth: AuthStamp
-    owner_text: SafeStr | None; observed: tuple[ObservedText, ...]; transcript: Transcript | None
-    found_instructions: tuple[FoundInstruction, ...]; is_owner_thread: bool
+    id: Ulid
+    kind: EventKind
+    raw: RawInbound
+    desk: Desk
+    coat_id: CoatId | None
+    auth: AuthStamp
+    owner_text: SafeStr | None
+    observed: tuple[ObservedText, ...]
+    transcript: Transcript | None
+    found_instructions: tuple[FoundInstruction, ...]
+    is_owner_thread: bool
+
     def flags(self) -> AuthFlags: ...
+
 
 # --- actions (§4 Act, §6) ---
 class ActionProposal(BaseModel, frozen=True):
     """Parsed from a ModelToolCall by DeskRuntime. Nothing here lowers a tier: every tier-relevant attribute
     is recomputed by TierResolver from ToolSpec, config and lookups."""
-    id: Ulid; tool: str; desk: Desk; coat_id: CoatId | None; args: dict[str, Any]
-    counterpart: str | None; amount: Money | None; reason: Reason | None; trigger_event_id: Ulid
-    model_claimed_tier: ActionTier | None = None; model_claimed_data_tier: DataTier | None = None
+
+    id: Ulid
+    tool: str
+    desk: Desk
+    coat_id: CoatId | None
+    args: dict[str, Any]
+    counterpart: str | None
+    amount: Money | None
+    reason: Reason | None
+    trigger_event_id: Ulid
+    model_claimed_tier: ActionTier | None = None
+    model_claimed_data_tier: DataTier | None = None
     readback_confirmed: bool = False
+
+
 class TierDecision(BaseModel, frozen=True):
-    tier: ActionTier; category: ActionCategory; rules_hit: tuple[str, ...]; refusal: RefusalCode | None = None
-    readback_required: bool = False; deferred_until: datetime | None = None
-    high_impact: bool; outbound: bool; irreversible: bool; in_owner_name: bool; new_counterpart: bool; data_tier: DataTier
+    tier: ActionTier
+    category: ActionCategory
+    rules_hit: tuple[str, ...]
+    refusal: RefusalCode | None = None
+    readback_required: bool = False
+    deferred_until: datetime | None = None
+    high_impact: bool
+    outbound: bool
+    irreversible: bool
+    in_owner_name: bool
+    new_counterpart: bool
+    data_tier: DataTier
+
+
 class ResolvedAction(BaseModel, frozen=True):
-    proposal: ActionProposal; decision: TierDecision; desk: Desk; coat_id: CoatId | None; resolved_at: datetime
+    proposal: ActionProposal
+    decision: TierDecision
+    desk: Desk
+    coat_id: CoatId | None
+    resolved_at: datetime
+
+
 @dataclass(frozen=True, slots=True)
 class ReleaseToken:
     """§6: one-shot capability; the nonce is a row in `releases`, burnt by ToolExecutor.execute."""
-    call_id: Ulid; nonce: str; tier: ActionTier; approval_id: Ulid | None; minted_at: datetime; minted_by: Literal["gate", "approval"]
+
+    call_id: Ulid
+    nonce: str
+    tier: ActionTier
+    approval_id: Ulid | None
+    minted_at: datetime
+    minted_by: Literal["gate", "approval"]
+
+
 class ReleasedAction(BaseModel, frozen=True):
     """Minted only by ApprovalsQueue.decide; the flags are derived from the signed decision Event and the
     second_channel_challenge table, never from a constructor argument."""
-    action: ResolvedAction; approval_id: Ulid; passphrase_verified: bool; second_channel_confirmed: bool
-    decided_by_event_id: Ulid; release: ReleaseToken
+
+    action: ResolvedAction
+    approval_id: Ulid
+    passphrase_verified: bool
+    second_channel_confirmed: bool
+    decided_by_event_id: Ulid
+    release: ReleaseToken
+
+
 class ToolResult(BaseModel, frozen=True):
-    ok: bool; output: dict[str, Any]; outbound_sent: bool = False; error: str | None = None; dry_run: bool = False
+    ok: bool
+    output: dict[str, Any]
+    outbound_sent: bool = False
+    error: str | None = None
+    dry_run: bool = False
+
+
 class ActionOutcome(BaseModel, frozen=True):
-    call_id: Ulid; status: ActionStatus; decision: TierDecision; audit_id: Ulid; approval_id: Ulid | None
-    result_hash: Hash; detail: SafeStr | None = None
-class ExecContext(BaseModel, frozen=True, arbitrary_types_allowed=True):   # CoatConfig is imported under TYPE_CHECKING only (nour.core sits below nour.config)
-    event: Event; coat: "CoatConfig | None"; release: ReleaseToken; call: PortCall; now: datetime; token: DeskToken
+    call_id: Ulid
+    status: ActionStatus
+    decision: TierDecision
+    audit_id: Ulid
+    approval_id: Ulid | None
+    result_hash: Hash
+    detail: SafeStr | None = None
+
+
+class ExecContext(
+    BaseModel, frozen=True, arbitrary_types_allowed=True
+):  # CoatConfig is imported under TYPE_CHECKING only (nour.core sits below nour.config)
+    event: Event
+    coat: "CoatConfig | None"
+    release: ReleaseToken
+    call: PortCall
+    now: datetime
+    token: DeskToken
+
+
 ToolHandler = Callable[[ActionProposal, ExecContext], ToolResult]
+
+
 class ToolSpec(BaseModel, frozen=True, arbitrary_types_allowed=True):
     """§7 capability register entry at the tool level. Every tier-relevant attribute lives here, not in the model's output."""
-    name: str; desk: DeskScope; category: ActionCategory; default_tier: ActionTier; data_tier_max: DataTier
-    outbound: bool; spends: bool; high_impact: bool; irreversible: bool; in_owner_name: bool; side_effect: bool
-    exempt_from_kill: bool = False                        # only owner-thread replies and second-channel alerts (§12 post-kill)
-    phase: int; description: str; args_model: type[BaseModel]; handler: ToolHandler | None   # None → NotInPhase stub
-    counterpart_arg: str | None = None; amount_arg: str | None = None; coat_from_args: bool = True
+
+    name: str
+    desk: DeskScope
+    category: ActionCategory
+    default_tier: ActionTier
+    data_tier_max: DataTier
+    outbound: bool
+    spends: bool
+    high_impact: bool
+    irreversible: bool
+    in_owner_name: bool
+    side_effect: bool
+    exempt_from_kill: bool = (
+        False  # only owner-thread replies and second-channel alerts (§12 post-kill)
+    )
+    phase: int
+    description: str
+    args_model: type[BaseModel]
+    handler: ToolHandler | None  # None → NotInPhase stub
+    counterpart_arg: str | None = None
+    amount_arg: str | None = None
+    coat_from_args: bool = True
+
 
 # --- one-way gate (§5) ---
 class Tier0Ref(BaseModel, frozen=True):
     """A fact is a reference to a record the Operator can already see — never free text."""
-    kind: Literal["knowledge_pack", "contact", "config", "task"]; ref: str
+
+    kind: Literal["knowledge_pack", "contact", "config", "task"]
+    ref: str
+
+
 class TaskHandoff(BaseModel, frozen=True):
-    id: Ulid; coat_id: CoatId; title: SafeStr; brief: SafeStr; facts: tuple[Tier0Ref, ...] = ()
-    due: datetime | None = None; source_event_id: Ulid
+    id: Ulid
+    coat_id: CoatId
+    title: SafeStr
+    brief: SafeStr
+    facts: tuple[Tier0Ref, ...] = ()
+    due: datetime | None = None
+    source_event_id: Ulid
     # validator: title/brief contain no "vault://", "{{", e-mail address, or Assistant-partition id prefix
+
 
 # --- audit (§12) ---
 class AuditEntryIn(BaseModel, frozen=True):
-    ts: datetime; desk: Desk; coat_id: CoatId | None; actor: Actor; action: str; category: ActionCategory | None
-    tier: ActionTier | None; status: ActionStatus; counterpart: SafeStr | None; amount: Money | None
-    approval_id: Ulid | None; data_tier: DataTier; reason: Reason; event_id: Ulid | None; invocation_id: Ulid
-    input_obj: Mapping[str, Any]; output_obj: Mapping[str, Any]; phase: Literal["opened", "closed"]
+    ts: datetime
+    desk: Desk
+    coat_id: CoatId | None
+    actor: Actor
+    action: str
+    category: ActionCategory | None
+    tier: ActionTier | None
+    status: ActionStatus
+    counterpart: SafeStr | None
+    amount: Money | None
+    approval_id: Ulid | None
+    data_tier: DataTier
+    reason: Reason
+    event_id: Ulid | None
+    invocation_id: Ulid
+    input_obj: Mapping[str, Any]
+    output_obj: Mapping[str, Any]
+    phase: Literal["opened", "closed"]
+
+
 class PassphraseAttempt(BaseModel, frozen=True):
-    id: Ulid; event_id: Ulid | None; sender: str; outcome: PassphraseOutcome; at: datetime
+    id: Ulid
+    event_id: Ulid | None
+    sender: str
+    outcome: PassphraseOutcome
+    at: datetime
+
 
 # --- upward protocols: implemented in later waves, depended on by earlier ones ---
 class AuditSink(Protocol):
     def append(self, entry: AuditEntryIn) -> Ulid: ...
+
+
 class RedactorLike(Protocol):
     """Implemented by nour.auth.passphrase.IngressRedactor; consumed by nour.events.adapters (same wave, no import)."""
-    def process(self, *, body: str | None, origin: Origin, channel: Channel, sender: str, signature_valid: bool, provider_msg_id: str | None) -> tuple[str | None, PassphraseAttempt | None]: ...
+
+    def process(
+        self,
+        *,
+        body: str | None,
+        origin: Origin,
+        channel: Channel,
+        sender: str,
+        signature_valid: bool,
+        provider_msg_id: str | None,
+    ) -> tuple[str | None, PassphraseAttempt | None]: ...
+
+
 class NotifierLike(Protocol):
-    def notify(self, text: SafeStr, kind: str, *, call: PortCall, emergency: bool = False) -> Ulid | None: ...
+    def notify(
+        self, text: SafeStr, kind: str, *, call: PortCall, emergency: bool = False
+    ) -> Ulid | None: ...
     def alert_second_channel(self, text: SafeStr, *, call: PortCall) -> None: ...
+
+
 class FreezeLike(Protocol):
     def scope(self) -> frozenset[FreezeScope]: ...
+
+
 class AuthFailureSink(Protocol):
     def on_auth_failure(self, attempt: PassphraseAttempt) -> None: ...
+
+
 class IncidentSink(Protocol):
-    def open(self, type: IncidentType, detected_by: Actor, first_response: SafeStr, frozen_scope: FreezeScope | None, event_id: Ulid | None) -> Ulid: ...
+    def open(
+        self,
+        type: IncidentType,
+        detected_by: Actor,
+        first_response: SafeStr,
+        frozen_scope: FreezeScope | None,
+        event_id: Ulid | None,
+    ) -> Ulid: ...
+
+
 class CounterpartLookup(Protocol):
     def is_known(self, coat_id: CoatId, desk: Desk, counterpart: str) -> bool: ...
+
+
 class CriticScore(BaseModel, frozen=True):
-    tone: float; claims: float; compliance: float; register: float; passed: bool; notes: SafeStr
+    tone: float
+    claims: float
+    compliance: float
+    register: float
+    passed: bool
+    notes: SafeStr
+
+
 class CriticLike(Protocol):
-    def score(self, draft: SafeStr, coat: "CoatConfig", counterpart_register: str) -> CriticScore: ...
+    def score(
+        self, draft: SafeStr, coat: "CoatConfig", counterpart_register: str
+    ) -> CriticScore: ...
 ```
 
 ### 3.6 Config (`nour/config/schema.py`, `loader.py`, `settings.py`)
@@ -666,109 +1316,314 @@ The schemas model the files that already exist in `config/` and `prompts/` key f
 ```python
 # nour/config/schema.py  (all frozen pydantic models; field names == yaml keys)
 class DataTierRule(BaseModel, frozen=True):
-    name: str; content: str; assistant_desk: str; operator_desk: str; leaves_to_third_parties: str
-    exceptions: list[str] = []; never_in: list[str] = []
+    name: str
+    content: str
+    assistant_desk: str
+    operator_desk: str
+    leaves_to_third_parties: str
+    exceptions: list[str] = []
+    never_in: list[str] = []
+
+
 class ActionTierRule(BaseModel, frozen=True):
-    name: str; rule: str; examples: list[str] = []; notify_within_minutes: int | None = None
+    name: str
+    rule: str
+    examples: list[str] = []
+    notify_within_minutes: int | None = None
+
+
 class CommandClass(BaseModel, frozen=True):
-    requires: list[str]; covers: list[str] = []; spoken_passphrase_accepted: bool | None = None
+    requires: list[str]
+    covers: list[str] = []
+    spoken_passphrase_accepted: bool | None = None
+
+
 class CommandAuthentication(BaseModel, frozen=True):
-    ordinary: CommandClass; high_impact: CommandClass; constitutional: CommandClass; voice_is_identity: bool = False
+    ordinary: CommandClass
+    high_impact: CommandClass
+    constitutional: CommandClass
+    voice_is_identity: bool = False
+
+
 class GraduatedAutonomy(BaseModel, frozen=True):
-    new_category_default_tier: ActionTier; new_category_min_days: int; promotion_unedited_rate: float
-    promotion_window_days: int; promotion_min_items: int; promotion_requires_passphrase: bool
-    demote_on: list[str]; max_promotion_steps_per_review: int
+    new_category_default_tier: ActionTier
+    new_category_min_days: int
+    promotion_unedited_rate: float
+    promotion_window_days: int
+    promotion_min_items: int
+    promotion_requires_passphrase: bool
+    demote_on: list[str]
+    max_promotion_steps_per_review: int
+
+
 class PermissionsConfig(BaseModel, frozen=True):
     """§6. Categories are strings validated against capabilities.yaml; nothing here is a core enum."""
-    data_tiers: dict[DataTier, DataTierRule]; action_tiers: dict[ActionTier, ActionTierRule]
-    command_authentication: CommandAuthentication; high_impact_actions: list[ActionCategory]
-    graduated_autonomy: GraduatedAutonomy; ask_every_time: list[ActionCategory]
-    readback_categories: list[ActionCategory] = ["money_out", "payment_prepare", "send_in_owner_name", "crm_update", "beneficiary_change", "memory_semantic", "memory_owner_profile", "document_sharing"]
-    second_channel_required: list[ActionCategory] = ["constitution_change", "kill_switch_release", "deputy_activation"]
-class SpendBand(BaseModel, frozen=True):   max: Money | None; tier: ActionTier
+
+    data_tiers: dict[DataTier, DataTierRule]
+    action_tiers: dict[ActionTier, ActionTierRule]
+    command_authentication: CommandAuthentication
+    high_impact_actions: list[ActionCategory]
+    graduated_autonomy: GraduatedAutonomy
+    ask_every_time: list[ActionCategory]
+    readback_categories: list[ActionCategory] = [
+        "money_out",
+        "payment_prepare",
+        "send_in_owner_name",
+        "crm_update",
+        "beneficiary_change",
+        "memory_semantic",
+        "memory_owner_profile",
+        "document_sharing",
+    ]
+    second_channel_required: list[ActionCategory] = [
+        "constitution_change",
+        "kill_switch_release",
+        "deputy_activation",
+    ]
+
+
+class SpendBand(BaseModel, frozen=True):
+    max: Money | None
+    tier: ActionTier
+
+
 class WatchdogConfig(BaseModel, frozen=True):
-    daily_spend_multiple_freeze: int; failed_sends_per_hour_freeze: int; loop_repeat_freeze: int = 3
+    daily_spend_multiple_freeze: int
+    failed_sends_per_hour_freeze: int
+    loop_repeat_freeze: int = 3
+
+
 class SpendTiersConfig(BaseModel, frozen=True):
     """§10. monthly_cap keys are BudgetHolders; None means '<owner sets>' and the holder has no card yet."""
-    currency: str; monthly_cap: dict[BudgetHolder, Money | None]; bands: list[SpendBand]
-    always_K: list[ActionCategory]; watchdog: WatchdogConfig
-    def band_for(self, amount: Money) -> ActionTier: ...            # bands sorted by max; None = open-ended
+
+    currency: str
+    monthly_cap: dict[BudgetHolder, Money | None]
+    bands: list[SpendBand]
+    always_K: list[ActionCategory]
+    watchdog: WatchdogConfig
+
+    def band_for(self, amount: Money) -> ActionTier: ...  # bands sorted by max; None = open-ended
+
+
 class OutreachWindow(BaseModel, frozen=True):
-    start: time; end: time; blocked_weekday_slots: list[BlockedSlot] = []; prayer_times: PrayerTimes
-    ramadan: RamadanRules; blocked_dates: list[BlockedDate] = []
+    start: time
+    end: time
+    blocked_weekday_slots: list[BlockedSlot] = []
+    prayer_times: PrayerTimes
+    ramadan: RamadanRules
+    blocked_dates: list[BlockedDate] = []
+
+
 class QuietHours(BaseModel, frozen=True):
-    start: time; end: time; emergencies_only: bool; emergency_categories: list[ActionCategory]
-class WeeklyReview(BaseModel, frozen=True): day: str; time: time
+    start: time
+    end: time
+    emergencies_only: bool
+    emergency_categories: list[ActionCategory]
+
+
+class WeeklyReview(BaseModel, frozen=True):
+    day: str
+    time: time
+
+
 class DailyRhythm(BaseModel, frozen=True):
-    morning_brief: time; evening_close: time; nightly_reflection: time; weekly_review: WeeklyReview
-    initiative_budget_per_day: int; notify_within_minutes: int
-    auditor_run: time = time(0, 30); notify_sweep_minutes: int = 15; owner_silence_check: time = time(8, 0)
+    morning_brief: time
+    evening_close: time
+    nightly_reflection: time
+    weekly_review: WeeklyReview
+    initiative_budget_per_day: int
+    notify_within_minutes: int
+    auditor_run: time = time(0, 30)
+    notify_sweep_minutes: int = 15
+    owner_silence_check: time = time(8, 0)
+
+
 class CalendarConfig(BaseModel, frozen=True):
     """§9 §12 §14: three separate rule sets (outreach window, quiet hours, rhythm)."""
-    timezone: str; outreach_window: OutreachWindow; quiet_hours: QuietHours; daily_rhythm: DailyRhythm
+
+    timezone: str
+    outreach_window: OutreachWindow
+    quiet_hours: QuietHours
+    daily_rhythm: DailyRhythm
     study_slot_minutes_per_day: int
+
     def in_quiet_hours(self, local: datetime) -> bool: ...
     def in_outreach_window(self, local: datetime) -> bool: ...
     def next_outreach_open(self, local: datetime) -> datetime: ...
     def next_quiet_end(self, local: datetime) -> datetime: ...
+
+
 class ChannelsConfig(BaseModel, frozen=True):
-    owner_thread: OwnerThreadRules; whatsapp_business: WhatsAppRules; email: EmailRules; owner_mailboxes: OwnerMailboxRules
-    ai_voice_line: VoiceLineRules; staff_request_lines: StaffLineRules; cadences: CadenceRules; consent: ConsentRules
-    watchdog: ChannelWatchdog; extra_channels: list[str] = []
-    def known_channels(self) -> frozenset[Channel]: ...               # PHASE0_CHANNELS ∪ extra_channels
+    owner_thread: OwnerThreadRules
+    whatsapp_business: WhatsAppRules
+    email: EmailRules
+    owner_mailboxes: OwnerMailboxRules
+    ai_voice_line: VoiceLineRules
+    staff_request_lines: StaffLineRules
+    cadences: CadenceRules
+    consent: ConsentRules
+    watchdog: ChannelWatchdog
+    extra_channels: list[str] = []
+
+    def known_channels(self) -> frozenset[Channel]: ...  # PHASE0_CHANNELS ∪ extra_channels
+
+
 class DeputyConfig(BaseModel, frozen=True):
-    deputy: DeputyIdentity; thresholds: DeputyThresholds; deputy_powers: list[str]; deputy_never_gets: list[str]; owner_return: OwnerReturn
+    deputy: DeputyIdentity
+    thresholds: DeputyThresholds
+    deputy_powers: list[str]
+    deputy_never_gets: list[str]
+    owner_return: OwnerReturn
+
+
 class CoatIdentity(BaseModel, frozen=True):
-    title: str; email: str; whatsapp_line: str; signature_ref: str; letterhead_ref: str; verification_page: str | None = None
+    title: str
+    email: str
+    whatsapp_line: str
+    signature_ref: str
+    letterhead_ref: str
+    verification_page: str | None = None
+
+
 class Mandate(BaseModel, frozen=True):
-    price_floor_pct_of_list: int; discount_max_pct: int; payment_terms_allowed: list[str]; templates_allowed: list[str]; owner_only: list[str]
+    price_floor_pct_of_list: int
+    discount_max_pct: int
+    payment_terms_allowed: list[str]
+    templates_allowed: list[str]
+    owner_only: list[str]
+
+
 class ApprovalRules(BaseModel, frozen=True):
-    default_new_category: ActionTier; autonomous_categories: list[ActionCategory] = []
-    notify_categories: list[ActionCategory] = []; category_started_at: dict[ActionCategory, date] = {}
-class CoatChannels(BaseModel, frozen=True): whatsapp_daily_cap: int; email_cold_daily_cap: int; warmup_weeks: int
+    default_new_category: ActionTier
+    autonomous_categories: list[ActionCategory] = []
+    notify_categories: list[ActionCategory] = []
+    category_started_at: dict[ActionCategory, date] = {}
+
+
+class CoatChannels(BaseModel, frozen=True):
+    whatsapp_daily_cap: int
+    email_cold_daily_cap: int
+    warmup_weeks: int
+
+
 class CoatConfig(BaseModel, frozen=True):
     """§5 coat bundle; `slug` is the CoatId."""
-    name: str; slug: CoatId; legal_entity: str; desks_allowed: list[Desk]; identity: CoatIdentity
-    tone_guide_ref: str; knowledge_pack_ref: str; mandate: Mandate; approval_rules: ApprovalRules
-    allowed_activities: list[str]; banking_ref: str; channels: CoatChannels
-    tone_guide: str; knowledge_pack: str                              # file contents, loaded by the loader
-class ModelEndpoint(BaseModel, frozen=True): vendor: str; model: str; region: str | None = None
+
+    name: str
+    slug: CoatId
+    legal_entity: str
+    desks_allowed: list[Desk]
+    identity: CoatIdentity
+    tone_guide_ref: str
+    knowledge_pack_ref: str
+    mandate: Mandate
+    approval_rules: ApprovalRules
+    allowed_activities: list[str]
+    banking_ref: str
+    channels: CoatChannels
+    tone_guide: str
+    knowledge_pack: str  # file contents, loaded by the loader
+
+
+class ModelEndpoint(BaseModel, frozen=True):
+    vendor: str
+    model: str
+    region: str | None = None
+
+
 class ModelsConfig(BaseModel, frozen=True):
     """§4 §17: validator asserts fallback.vendor != primary.vendor AND auditor.vendor != primary.vendor."""
-    primary: ModelEndpoint; fallback: ModelEndpoint; critic: ModelEndpoint; auditor: ModelEndpoint; private_tier2: ModelEndpoint | None = None
+
+    primary: ModelEndpoint
+    fallback: ModelEndpoint
+    critic: ModelEndpoint
+    auditor: ModelEndpoint
+    private_tier2: ModelEndpoint | None = None
+
+
 class Capability(BaseModel, frozen=True):
     """One §7 row. `tools` names the ToolSpecs (or routines) that implement it; `categories` the ActionCategory names."""
-    id: str; capability: str; desk: DeskScope; tier: str; phase: int; categories: list[ActionCategory]; tools: list[str]; routine: str | None = None
+
+    id: str
+    capability: str
+    desk: DeskScope
+    tier: str
+    phase: int
+    categories: list[ActionCategory]
+    tools: list[str]
+    routine: str | None = None
+
+
 class CapabilitiesConfig(BaseModel, frozen=True):
     capabilities: list[Capability]
+
     def categories(self) -> frozenset[ActionCategory]: ...
-class ChangeLogEntry(BaseModel, frozen=True): date: date; change: str; confirmed_by: str; constitution_hash: Hash | None = None
+
+
+class ChangeLogEntry(BaseModel, frozen=True):
+    date: date
+    change: str
+    confirmed_by: str
+    constitution_hash: Hash | None = None
+
+
 class Constitution(BaseModel, frozen=True):
-    text: str; hard_rules: str; changelog: list[ChangeLogEntry]; sha256: Hash
-    def kill_phrases(self) -> frozenset[str]: ...                     # §12: fixed tokens parsed from the "Kill switch" section of constitution.md
+    text: str
+    hard_rules: str
+    changelog: list[ChangeLogEntry]
+    sha256: Hash
+
+    def kill_phrases(
+        self,
+    ) -> frozenset[
+        str
+    ]: ...  # §12: fixed tokens parsed from the "Kill switch" section of constitution.md
+
+
 class NourConfig(BaseModel, frozen=True):
-    constitution: Constitution; persona: str; coats: dict[CoatId, CoatConfig]; permissions: PermissionsConfig
-    spend_tiers: SpendTiersConfig; channels: ChannelsConfig; calendar: CalendarConfig; deputy: DeputyConfig
-    models: ModelsConfig; capabilities: CapabilitiesConfig; prompts: dict[str, str]; config_hash: Hash
-    def coat(self, coat_id: CoatId) -> CoatConfig: ...                 # KeyError → gate refuses UNKNOWN_COAT
-    def known_categories(self) -> frozenset[ActionCategory]: ...       # capabilities ∪ high_impact ∪ ask_every_time ∪ always_K ∪ coat rules ∪ emergency
+    constitution: Constitution
+    persona: str
+    coats: dict[CoatId, CoatConfig]
+    permissions: PermissionsConfig
+    spend_tiers: SpendTiersConfig
+    channels: ChannelsConfig
+    calendar: CalendarConfig
+    deputy: DeputyConfig
+    models: ModelsConfig
+    capabilities: CapabilitiesConfig
+    prompts: dict[str, str]
+    config_hash: Hash
+
+    def coat(self, coat_id: CoatId) -> CoatConfig: ...  # KeyError → gate refuses UNKNOWN_COAT
+    def known_categories(
+        self,
+    ) -> frozenset[
+        ActionCategory
+    ]: ...  # capabilities ∪ high_impact ∪ ask_every_time ∪ always_K ∪ coat rules ∪ emergency
+
 
 # nour/config/loader.py
 def load_config(config_dir: Path, prompts_dir: Path) -> NourConfig:
     """§18. Raises ConfigError listing EVERY violation: unknown category names, coat desk not in Desk, vendor
     clashes (§4), coat refs that do not exist, a constitution whose sha256 is not the one recorded by the latest
     change-log entry (§2 amendment process: refuse to start), templates with undefined variables."""
-def compute_config_hash(cfg: NourConfig) -> Hash: ...                 # logged on every audit row (config_hash)
+
+
+def compute_config_hash(cfg: NourConfig) -> Hash: ...  # logged on every audit row (config_hash)
+
 
 # nour/config/settings.py
-class Settings(BaseSettings):                                          # env prefix NOUR_
+class Settings(BaseSettings):  # env prefix NOUR_
     env: Literal["test", "staging", "prod"] = "test"
     database_url: str = "sqlite+pysqlite:///nour.db"
-    config_dir: Path = Path("config"); prompts_dir: Path = Path("prompts")
-    desk: Desk | None = None; region: str = "me-central-1"
+    config_dir: Path = Path("config")
+    prompts_dir: Path = Path("prompts")
+    desk: Desk | None = None
+    region: str = "me-central-1"
     secrets_backend: Literal["fake", "aws", "azure"] = "fake"
-    dry_run: bool = True                                               # §8: production flips it per playbook/phase gate
-    stamp_key_name: str = "auth/stamp-key"; leakguard_key_name: str = "governance/leakguard-key"
+    dry_run: bool = True  # §8: production flips it per playbook/phase gate
+    stamp_key_name: str = "auth/stamp-key"
+    leakguard_key_name: str = "governance/leakguard-key"
 ```
 
 ### 3.7 DB base, engine, session (`nour/db/base.py`, `engine.py`, `session.py`) — core
@@ -777,48 +1632,93 @@ class Settings(BaseSettings):                                          # env pre
 # nour/db/base.py
 class Scope(StrEnum):
     """§5 wall marker on every mapper (`__scope__`)."""
-    SHARED = "shared"; DESK_ROW = "desk_row"; ASSISTANT_ONLY = "assistant_only"; OPERATOR_ONLY = "operator_only"
-    GOVERNANCE_ONLY = "governance_only"; AUDITOR_WRITE = "auditor_write"
+
+    SHARED = "shared"
+    DESK_ROW = "desk_row"
+    ASSISTANT_ONLY = "assistant_only"
+    OPERATOR_ONLY = "operator_only"
+    GOVERNANCE_ONLY = "governance_only"
+    AUDITOR_WRITE = "auditor_write"
+
+
 class Base(DeclarativeBase):
     __scope__: ClassVar[Scope] = Scope.SHARED
-    __append_only__: ClassVar[bool] = False               # DB trigger + ORM listener
-    __single_transition__: ClassVar[tuple[str, ...]] = () # columns settable once while NULL (approval.decided_at …)
-    __forward_only__: ClassVar[dict[str, list[str]]] = {} # status columns with an ordered state list (transaction.status)
+    __append_only__: ClassVar[bool] = False  # DB trigger + ORM listener
+    __single_transition__: ClassVar[
+        tuple[str, ...]
+    ] = ()  # columns settable once while NULL (approval.decided_at …)
+    __forward_only__: ClassVar[
+        dict[str, list[str]]
+    ] = {}  # status columns with an ordered state list (transaction.status)
+
+
 class RecordMixin:
-    id: Mapped[Ulid]; created_at: Mapped[datetime]; updated_at: Mapped[datetime]   # defaults call clock.process_now()
-class DeskMixin:   desk: Mapped[Desk]
-class CoatMixin:   coat_id: Mapped[CoatId | None]
+    id: Mapped[Ulid]
+    created_at: Mapped[datetime]
+    updated_at: Mapped[datetime]  # defaults call clock.process_now()
+
+
+class DeskMixin:
+    desk: Mapped[Desk]
+
+
+class CoatMixin:
+    coat_id: Mapped[CoatId | None]
+
+
 class Ciphertext(bytes):
     """Minted only by FieldCipher.encrypt; EncryptedBytes refuses any other bytes/str, so plaintext cannot be
     written through the ORM (§11 §13)."""
-class EncryptedBytes(TypeDecorator): ...                  # impl LargeBinary; process_bind_param asserts isinstance(value, Ciphertext)
+
+
+class EncryptedBytes(
+    TypeDecorator
+): ...  # impl LargeBinary; process_bind_param asserts isinstance(value, Ciphertext)
+
+
 JSONCol = JSON().with_variant(JSONB, "postgresql")
-MoneyCol = BigInteger                                     # fils; currency in a sibling TEXT column
+MoneyCol = BigInteger  # fils; currency in a sibling TEXT column
+
+
 def scope_allows(scope: Scope, token: AnyToken, *, write: bool) -> bool: ...
 
+
 # nour/db/engine.py
-def make_engine(url: str, *, read_only: bool = False) -> Engine: ...  # SQLite: WAL, foreign_keys=ON, BEGIN IMMEDIATE for writers,
-                                                                      # `mode=ro` URI for read_only; PG: psycopg, default_transaction_read_only for auditor
+def make_engine(url: str, *, read_only: bool = False) -> Engine:
+    ...  # SQLite: WAL, foreign_keys=ON, BEGIN IMMEDIATE for writers,
+    # `mode=ro` URI for read_only; PG: psycopg, default_transaction_read_only for auditor
+
+
 def create_schema(engine: Engine, metadata: MetaData) -> None:
     """create_all + append_only_ddl + single_transition_ddl + forward_only_ddl on BOTH dialects (triggers that
     RAISE) + pg_roles_ddl on Postgres. Tests call this; production runs the same DDL from the alembic migration."""
-def append_only_ddl(dialect: str, table: str) -> list[str]: ...       # SQLite: CREATE TRIGGER … BEFORE UPDATE/DELETE … RAISE(ABORT);
-                                                                      # PG: plpgsql trigger RAISE EXCEPTION (never a RULE DO INSTEAD NOTHING)
+
+
+def append_only_ddl(dialect: str, table: str) -> list[str]:
+    ...  # SQLite: CREATE TRIGGER … BEFORE UPDATE/DELETE … RAISE(ABORT);
+    # PG: plpgsql trigger RAISE EXCEPTION (never a RULE DO INSTEAD NOTHING)
+
+
 def single_transition_ddl(dialect: str, table: str, columns: Sequence[str]) -> list[str]: ...
 def forward_only_ddl(dialect: str, table: str, column: str, order: Sequence[str]) -> list[str]: ...
 def pg_roles_ddl(metadata: MetaData) -> list[str]:
     """§5 §13: roles nour_ingress, nour_desk_operator, nour_desk_assistant, nour_scheduler, nour_auditor; GRANTs by
     Scope; REVOKE UPDATE, DELETE on append-only tables; RLS policies on DESK_ROW tables keyed on current_setting('nour.desk')."""
 
+
 # nour/db/session.py
 class SessionFactory:
     """One per process, bound to a token. Writers use BEGIN IMMEDIATE (SQLite) / SET LOCAL nour.desk (PG)."""
+
     def __init__(self, engine: Engine, token: AnyToken, clock: Clock) -> None: ...
     @contextmanager
-    def session(self) -> Iterator[Session]: ...            # read-only session for AuditorToken
+    def session(self) -> Iterator[Session]: ...  # read-only session for AuditorToken
     @contextmanager
-    def write(self) -> Iterator[Session]: ...              # raises for AuditorToken; serialises writers
+    def write(self) -> Iterator[Session]: ...  # raises for AuditorToken; serialises writers
+
     token: AnyToken
+
+
 class DeskWallGuard:
     """§5 the SQLite-side wall (mirrored by PG grants/RLS):
     do_orm_execute → raise DeskWallViolation for any mapper whose __scope__ the token may not read; add
@@ -826,6 +1726,7 @@ class DeskWallGuard:
     before_flush → every new/dirty DESK_ROW row must carry desk == token.desk; forbidden scopes raise; dirty or
       deleted __append_only__ rows raise AppendOnlyViolation; __single_transition__ columns may change only from NULL;
       __forward_only__ status may only move forward."""
+
     def __init__(self, token: AnyToken) -> None: ...
     def install(self, session: Session) -> None: ...
 ```
@@ -838,9 +1739,14 @@ class DeskWallGuard:
 # MemoryRecordRow, ExperimentRow, SkillRow, IncidentRow, InboxEventRow, TimerSlotRow, ReleaseRow, FreezeStateRow,
 # AuditChainHeadRow, PassphraseAttemptRow, FoundInstructionRow, HandoffRow, ReadbackPendingRow, CardRow,
 # CardAuthorizationRow, SecondChannelChallengeRow, PendingOwnerMessageRow, CategoryStateRow, ModelTraceRow, AuditorReportRow
-brain_metadata: MetaData; auditor_metadata: MetaData       # auditor_report lives in auditor_metadata (PG schema "auditor")
-APPEND_ONLY_TABLES: frozenset[str]                         # audit_event, decision_journal, passphrase_attempt, found_instruction,
-                                                           # card_authorization, timer_slot, model_trace, auditor_report
+brain_metadata: MetaData
+auditor_metadata: MetaData  # auditor_report lives in auditor_metadata (PG schema "auditor")
+APPEND_ONLY_TABLES: frozenset[
+    str
+]  # audit_event, decision_journal, passphrase_attempt, found_instruction,
+
+
+# card_authorization, timer_slot, model_trace, auditor_report
 def all_text_columns() -> list[tuple[Table, Column]]: ...  # for Harness.db_dump_text
 ```
 
@@ -972,70 +1878,164 @@ class AuditLog(AuditSink):
     """§2 §12: append-only, hash-chained, two rows per action. `append` takes the chain head row under lock
     (SQLite BEGIN IMMEDIATE / PG SELECT … FOR UPDATE on audit_chain_head) so ingress and desks never fork the chain.
     input_obj/output_obj pass guard.safe_mapping before hashing; only hashes are stored (§12)."""
-    def __init__(self, sf: SessionFactory, guard: LeakGuard, clock: Clock, idgen: IdGenerator, config_hash: Hash) -> None: ...
+
+    def __init__(
+        self,
+        sf: SessionFactory,
+        guard: LeakGuard,
+        clock: Clock,
+        idgen: IdGenerator,
+        config_hash: Hash,
+    ) -> None: ...
     def append(self, entry: AuditEntryIn) -> Ulid: ...
     @contextmanager
-    def span(self, *, desk: Desk, coat_id: CoatId | None, actor: Actor, action: str, category: ActionCategory | None,
-             tier: ActionTier | None, counterpart: SafeStr | None, amount: Money | None, approval_id: Ulid | None,
-             data_tier: DataTier, reason: Reason, event_id: Ulid | None, input_obj: Mapping[str, Any], dry_run: bool = False) -> Iterator["AuditSpan"]:
+    def span(
+        self,
+        *,
+        desk: Desk,
+        coat_id: CoatId | None,
+        actor: Actor,
+        action: str,
+        category: ActionCategory | None,
+        tier: ActionTier | None,
+        counterpart: SafeStr | None,
+        amount: Money | None,
+        approval_id: Ulid | None,
+        data_tier: DataTier,
+        reason: Reason,
+        event_id: Ulid | None,
+        input_obj: Mapping[str, Any],
+        dry_run: bool = False,
+    ) -> Iterator["AuditSpan"]:
         """__enter__ writes the `opened` row and commits (write-ahead; mints invocation_id and the PortCall);
         __exit__ writes exactly one `closed` row with the status set by the body (or FAILED/FROZEN/REFUSED from the exception) and re-raises."""
+
+
 class AuditSpan:
-    invocation_id: Ulid; call: PortCall
+    invocation_id: Ulid
+    call: PortCall
+
     def set_status(self, status: ActionStatus) -> None: ...
     def set_output(self, obj: Mapping[str, Any]) -> None: ...
     def set_approval(self, approval_id: Ulid) -> None: ...
 
+
 # nour/audit/reader.py
 class AuditReader:
     """Works with AuditorToken (read-only) or any DeskToken; never writes."""
+
     def __init__(self, sf: SessionFactory) -> None: ...
     def day(self, day: date) -> list[AuditEventRow]: ...
-    def between(self, start: datetime, end: datetime, *, desk: Desk | None = None, status: ActionStatus | None = None) -> list[AuditEventRow]: ...
+    def between(
+        self,
+        start: datetime,
+        end: datetime,
+        *,
+        desk: Desk | None = None,
+        status: ActionStatus | None = None,
+    ) -> list[AuditEventRow]: ...
     def by_event(self, event_id: Ulid) -> list[AuditEventRow]: ...
-    def explain(self, invocation_id: Ulid) -> tuple[AuditEventRow, AuditEventRow | None]: ...   # §2: "explain any past action" (opened, closed)
+    def explain(
+        self, invocation_id: Ulid
+    ) -> tuple[
+        AuditEventRow, AuditEventRow | None
+    ]: ...  # §2: "explain any past action" (opened, closed)
     def closed_invocations(self, start: datetime, end: datetime) -> set[Ulid]: ...
     def verify_chain(self, rows: Sequence[AuditEventRow] | None = None) -> bool: ...
     def count(self, start: datetime, end: datetime) -> int: ...
 
+
 # nour/audit/coverage.py
 class CoverageReport(BaseModel, frozen=True):
-    dispatched: int; opened: int; closed: int; missing_closed: list[Ulid]; port_calls_without_audit: list[RecordedCall]; unknown_audit_ids: list[Ulid]
+    dispatched: int
+    opened: int
+    closed: int
+    missing_closed: list[Ulid]
+    port_calls_without_audit: list[RecordedCall]
+    unknown_audit_ids: list[Ulid]
+
     @property
-    def complete(self) -> bool: ...                            # all three lists empty and dispatched == closed
+    def complete(self) -> bool: ...  # all three lists empty and dispatched == closed
+
+
 class ActionCoverage:
     """§16: bidirectional proof. Dispatched ids (independent dispatch_sink) == closed audit rows; every CallLog
     entry has an audit_id that is an opened row; non-port effects are covered because CRM/memory/task rows carry audit_id."""
+
     def __init__(self, reader: AuditReader) -> None: ...
-    def verify(self, dispatched: Iterable[Ulid], call_log: CallLog, start: datetime, end: datetime) -> CoverageReport: ...
+    def verify(
+        self, dispatched: Iterable[Ulid], call_log: CallLog, start: datetime, end: datetime
+    ) -> CoverageReport: ...
+
 
 # nour/audit/replay.py
-class ReplayReport(BaseModel, frozen=True): original_tail_hash: str; replayed_tail_hash: str; first_divergence: Ulid | None
+class ReplayReport(BaseModel, frozen=True):
+    original_tail_hash: str
+    replayed_tail_hash: str
+    first_divergence: Ulid | None
+
+
 class Replayer:
     """§12 §14 determinism oracle: re-runs a day from the stored inbox events and the model_trace table
     (model tool calls only, LeakGuard-scrubbed, 30-day retention — never observed text) and compares chain tails."""
+
     def __init__(self, reader: AuditReader, sf: SessionFactory) -> None: ...
     def replay_policy(self, day: date) -> ReplayPolicy: ...
-    def replay(self, day: date, build: Callable[[ReplayPolicy, int], "Harness"], seed: int) -> ReplayReport: ...
+    def replay(
+        self, day: date, build: Callable[[ReplayPolicy, int], "Harness"], seed: int
+    ) -> ReplayReport: ...
+
 
 # nour/audit/auditor/checks.py — deterministic, over AuditEventRow lists
-class Finding(BaseModel, frozen=True): kind: str; severity: Literal["info", "warn", "alert"]; audit_ids: list[Ulid]; summary: SafeStr
+class Finding(BaseModel, frozen=True):
+    kind: str
+    severity: Literal["info", "warn", "alert"]
+    audit_ids: list[Ulid]
+    summary: SafeStr
+
+
 def actions_without_approval(rows: Sequence[AuditEventRow]) -> list[Finding]: ...
 def spend_patterns(rows: Sequence[AuditEventRow], cfg: SpendTiersConfig) -> list[Finding]: ...
 def unusual_recipients(rows: Sequence[AuditEventRow], known: set[str]) -> list[Finding]: ...
 def retries(rows: Sequence[AuditEventRow]) -> list[Finding]: ...
-def instructions_in_observed(rows: Sequence[AuditEventRow], found: Sequence[FoundInstructionRow]) -> list[Finding]: ...
+def instructions_in_observed(
+    rows: Sequence[AuditEventRow], found: Sequence[FoundInstructionRow]
+) -> list[Finding]: ...
 def tier_violations(rows: Sequence[AuditEventRow], cfg: NourConfig) -> list[Finding]: ...
 def broken_chain(reader: AuditReader, rows: Sequence[AuditEventRow]) -> list[Finding]: ...
+
+
 # nour/audit/auditor/runner.py
 class AuditorRunner:
     """§12: separate process, AuditorToken, AUDITOR model role (different vendor). Checks first; the model only summarises."""
-    def __init__(self, reader: AuditReader, sf: SessionFactory, model: ModelPort, prompts: PromptAssembler, reporter: "AuditorReporter",
-                 cfg: NourConfig, guard: LeakGuard, clock: Clock, idgen: IdGenerator) -> None: ...
-    def run_day(self, day: date) -> list[Finding]: ...     # writes auditor_report (append-only) then reporter.send
+
+    def __init__(
+        self,
+        reader: AuditReader,
+        sf: SessionFactory,
+        model: ModelPort,
+        prompts: PromptAssembler,
+        reporter: "AuditorReporter",
+        cfg: NourConfig,
+        guard: LeakGuard,
+        clock: Clock,
+        idgen: IdGenerator,
+    ) -> None: ...
+    def run_day(
+        self, day: date
+    ) -> list[Finding]: ...  # writes auditor_report (append-only) then reporter.send
+
+
 # nour/audit/auditor/report.py
 class AuditorReporter:
-    def __init__(self, whatsapp: WhatsAppPort, second: SecondChannelPort, owner_number: str, owner_line: str, call_log: CallLog) -> None: ...
+    def __init__(
+        self,
+        whatsapp: WhatsAppPort,
+        second: SecondChannelPort,
+        owner_number: str,
+        owner_line: str,
+        call_log: CallLog,
+    ) -> None: ...
     def send(self, day: date, findings: Sequence[Finding], call: PortCall) -> None: ...
 ```
 
@@ -1046,19 +2046,44 @@ class AuditorReporter:
 class PassphraseVerifier:
     """§6: argon2id hash in owner.passphrase_hash, checked server-side; the plaintext is also registered once in
     LeakGuard so it is caught in ANY position of ANY text. Never logs a candidate."""
-    def __init__(self, sf: SessionFactory, guard: LeakGuard, clock: Clock, idgen: IdGenerator) -> None: ...
-    def set_passphrase(self, plain: str, token: GovernanceToken) -> None: ...   # CLI `owner set-passphrase`
+
+    def __init__(
+        self, sf: SessionFactory, guard: LeakGuard, clock: Clock, idgen: IdGenerator
+    ) -> None: ...
+    def set_passphrase(
+        self, plain: str, token: GovernanceToken
+    ) -> None: ...  # CLI `owner set-passphrase`
     def verify(self, candidate: str) -> bool: ...
     def is_set(self) -> bool: ...
+
+
 class IngressRedactor:
     """§6 §13 (cross-cutting fix): runs in the ingress process BEFORE anything is persisted. Finds a passphrase
     candidate by grammar (`pass: …` line, trailing `#…`, or any token whose LeakGuard fingerprint matches),
     verifies it, redacts it from the body, writes ONE passphrase_attempt row with the outcome
     (ok | wrong | spoken | wrong_thread | spoofed_number | spoof_suspected | replayed) and returns the redacted body."""
-    def __init__(self, verifier: PassphraseVerifier, guard: LeakGuard, sf: SessionFactory, clock: Clock, idgen: IdGenerator,
-                 on_failure: AuthFailureSink) -> None: ...   # reads the owner row (number, second channel) through sf
-    def process(self, *, body: str | None, origin: Origin, channel: Channel, sender: str, signature_valid: bool, provider_msg_id: str | None) -> tuple[str | None, PassphraseAttempt | None]: ...
+
+    def __init__(
+        self,
+        verifier: PassphraseVerifier,
+        guard: LeakGuard,
+        sf: SessionFactory,
+        clock: Clock,
+        idgen: IdGenerator,
+        on_failure: AuthFailureSink,
+    ) -> None: ...  # reads the owner row (number, second channel) through sf
+    def process(
+        self,
+        *,
+        body: str | None,
+        origin: Origin,
+        channel: Channel,
+        sender: str,
+        signature_valid: bool,
+        provider_msg_id: str | None,
+    ) -> tuple[str | None, PassphraseAttempt | None]: ...
     def extract_candidates(self, body: str) -> list[tuple[str, tuple[int, int]]]: ...
+
 
 # nour/auth/authenticator.py
 class Authenticator:
@@ -1066,30 +2091,79 @@ class Authenticator:
     ∧ signature_valid. passphrase_verified = owner_verified ∧ origin == TEXT ∧ raw.passphrase_attempt == OK (voice can
     never grant it, §6). authority: OWNER if owner_verified else STAFF_REQUEST on staff lines else SYSTEM for timers/
     approvals/handoffs else DATA. Signs AuthStamp with the desk's stamp key; verify() recomputes the HMAC."""
-    def __init__(self, sf: SessionFactory, stamp_key: bytes, scanner: InjectionScanner, stt: ArabicSTT | None, readback: "ReadBackLedger",
-                 guard: LeakGuard, whatsapp: WhatsAppPort, clock: Clock, idgen: IdGenerator, on_failure: AuthFailureSink, incidents: IncidentSink) -> None: ...
+
+    def __init__(
+        self,
+        sf: SessionFactory,
+        stamp_key: bytes,
+        scanner: InjectionScanner,
+        stt: ArabicSTT | None,
+        readback: "ReadBackLedger",
+        guard: LeakGuard,
+        whatsapp: WhatsAppPort,
+        clock: Clock,
+        idgen: IdGenerator,
+        on_failure: AuthFailureSink,
+        incidents: IncidentSink,
+    ) -> None: ...
     def stamp(self, routed: RoutedInbound) -> Event: ...
     def verify(self, event: Event) -> bool: ...
     def owner_number(self) -> str: ...
+
 
 # nour/auth/second_channel.py
 class SecondChannelConfirmations:
     """§6 §12: every challenge is bound to one ref (approval_id, 'kill_switch_release', 'constitution:<hash>',
     'deputy_activation'); token stored as a hash, unique, consumed once; confirmations arrive as ordinary
     SECOND_CHANNEL inbox events. `is_confirmed(ref)` is the only producer of second_channel_confirmed."""
-    def __init__(self, sf: SessionFactory, port: SecondChannelPort, clock: Clock, idgen: IdGenerator, ttl: timedelta = timedelta(minutes=30)) -> None: ...
-    def request(self, ref: str, purpose: str, summary: SafeStr, call: PortCall) -> str: ...        # returns the token (sent via port)
-    def consume(self, token: str, sender: str) -> str | None: ...                                  # → ref, or None if unknown/expired/used
+
+    def __init__(
+        self,
+        sf: SessionFactory,
+        port: SecondChannelPort,
+        clock: Clock,
+        idgen: IdGenerator,
+        ttl: timedelta = timedelta(minutes=30),
+    ) -> None: ...
+    def request(
+        self, ref: str, purpose: str, summary: SafeStr, call: PortCall
+    ) -> str: ...  # returns the token (sent via port)
+    def consume(
+        self, token: str, sender: str
+    ) -> str | None: ...  # → ref, or None if unknown/expired/used
     def is_confirmed(self, ref: str) -> bool: ...
 
+
 # nour/auth/readback.py
-class ReadBackPending(BaseModel, frozen=True): id: Ulid; event_id: Ulid; proposal: ActionProposal; understood: SafeStr; expires_at: datetime
+class ReadBackPending(BaseModel, frozen=True):
+    id: Ulid
+    event_id: Ulid
+    proposal: ActionProposal
+    understood: SafeStr
+    expires_at: datetime
+
+
 class ReadBackLedger:
     """§9 read-back rule: a voice command in a readback category parks until a text 'yes' on the owner thread."""
-    def __init__(self, sf: SessionFactory, clock: Clock, idgen: IdGenerator, ttl: timedelta = timedelta(hours=2)) -> None: ...
-    def open(self, event_id: Ulid, proposal: ActionProposal, understood: SafeStr) -> ReadBackPending: ...
-    def match_confirmation(self, event: Event) -> ReadBackPending | None: ...   # 'yes'/'نعم'/'ايه'/'اي' from an owner_verified text event within ttl
-    def confirm(self, pending_id: Ulid, confirming_event_id: Ulid) -> ActionProposal: ...   # re-issued with readback_confirmed=True
+
+    def __init__(
+        self,
+        sf: SessionFactory,
+        clock: Clock,
+        idgen: IdGenerator,
+        ttl: timedelta = timedelta(hours=2),
+    ) -> None: ...
+    def open(
+        self, event_id: Ulid, proposal: ActionProposal, understood: SafeStr
+    ) -> ReadBackPending: ...
+    def match_confirmation(
+        self, event: Event
+    ) -> (
+        ReadBackPending | None
+    ): ...  # 'yes'/'نعم'/'ايه'/'اي' from an owner_verified text event within ttl
+    def confirm(
+        self, pending_id: Ulid, confirming_event_id: Ulid
+    ) -> ActionProposal: ...  # re-issued with readback_confirmed=True
     def expire(self, now: datetime) -> int: ...
 ```
 
@@ -1100,58 +2174,161 @@ class ReadBackLedger:
 class FieldCipher:
     """§10 §11 §13: AES-256-GCM, key from SecretsPort 'assistant/vault/field-key' (absent in the Operator process →
     unconstructable there); AAD = table.column.id. Returns Ciphertext, the only bytes EncryptedBytes accepts."""
-    def __init__(self, secrets: SecretsPort, key_name: str = "assistant/vault/field-key") -> None: ...
+
+    def __init__(
+        self, secrets: SecretsPort, key_name: str = "assistant/vault/field-key"
+    ) -> None: ...
     def encrypt(self, plaintext: str, aad: bytes) -> Ciphertext: ...
-    def decrypt(self, blob: Ciphertext, aad: bytes) -> str: ...     # tests/unit/test_walls.py: `.decrypt(` only inside nour/vault/
+    def decrypt(
+        self, blob: Ciphertext, aad: bytes
+    ) -> str: ...  # tests/unit/test_walls.py: `.decrypt(` only inside nour/vault/
+
 
 # nour/vault/store.py
 class DocumentMeta(BaseModel, frozen=True):
-    id: Ulid; entity_ref: str; type: str; tier: DataTier; title: SafeStr; expiry: date | None; version: int; sha256: Hash; allowed_recipients: tuple[str, ...]
-class ShareRecord(BaseModel, frozen=True): doc_id: Ulid; recipient: str; purpose: Reason; approval_id: Ulid; link: str; at: datetime
+    id: Ulid
+    entity_ref: str
+    type: str
+    tier: DataTier
+    title: SafeStr
+    expiry: date | None
+    version: int
+    sha256: Hash
+    allowed_recipients: tuple[str, ...]
+
+
+class ShareRecord(BaseModel, frozen=True):
+    doc_id: Ulid
+    recipient: str
+    purpose: Reason
+    approval_id: Ulid
+    link: str
+    at: datetime
+
+
 class TierRegister:
     def __init__(self, cfg: PermissionsConfig) -> None: ...
     def tier_of(self, document_type: str, entity_ref: str) -> DataTier: ...
     def may(self, desk: Desk, tier: DataTier, op: Literal["know", "use", "share"]) -> bool: ...
+
+
 class VaultStore:
     """§11 §15: the only decrypting code path. Constructor takes AssistantToken (type), so an Operator process cannot
     build it; Tier 2 documents are metadata-only in the index (DB CHECK content_text IS NULL); every Tier 2 value's
     fingerprint is registered in LeakGuard on file()/put_secret()."""
-    def __init__(self, sf: SessionFactory, cipher: FieldCipher, objects: ObjectStoragePort, index: VectorIndexPort, guard: LeakGuard,
-                 audit: AuditSink, register: TierRegister, clock: Clock, idgen: IdGenerator, token: AssistantToken) -> None: ...
-    def file(self, *, entity_ref: str, type: str, tier: DataTier, title: str, content: bytes, expiry: date | None,
-             confirmed_by_event: Ulid, call: PortCall) -> DocumentMeta: ...                    # §11 intake: files only after owner confirms the tier
-    def search_meta(self, *, entity_ref: str | None = None, type: str | None = None, query: str | None = None) -> list[DocumentMeta]: ...
+
+    def __init__(
+        self,
+        sf: SessionFactory,
+        cipher: FieldCipher,
+        objects: ObjectStoragePort,
+        index: VectorIndexPort,
+        guard: LeakGuard,
+        audit: AuditSink,
+        register: TierRegister,
+        clock: Clock,
+        idgen: IdGenerator,
+        token: AssistantToken,
+    ) -> None: ...
+    def file(
+        self,
+        *,
+        entity_ref: str,
+        type: str,
+        tier: DataTier,
+        title: str,
+        content: bytes,
+        expiry: date | None,
+        confirmed_by_event: Ulid,
+        call: PortCall,
+    ) -> DocumentMeta: ...  # §11 intake: files only after owner confirms the tier
+    def search_meta(
+        self, *, entity_ref: str | None = None, type: str | None = None, query: str | None = None
+    ) -> list[DocumentMeta]: ...
     def expiring(self, within_days: int) -> list[DocumentMeta]: ...
-    def put_secret(self, entity_ref: str, key: str, value: str, token: GovernanceToken) -> SecretRef: ...   # CLI `vault put-banking`
+    def put_secret(
+        self, entity_ref: str, key: str, value: str, token: GovernanceToken
+    ) -> SecretRef: ...  # CLI `vault put-banking`
     def ref(self, uri: str) -> SecretRef: ...
-    def reveal(self, ref: SecretRef, witness: RenderWitness) -> Tier2Value: ...   # audit row data_tier=2, output hash = ref.content_fp
-    def share(self, doc_id: Ulid, recipient: str, purpose: Reason, released: ReleasedAction, call: PortCall) -> ShareRecord: ...
+    def reveal(
+        self, ref: SecretRef, witness: RenderWitness
+    ) -> Tier2Value: ...  # audit row data_tier=2, output hash = ref.content_fp
+    def share(
+        self,
+        doc_id: Ulid,
+        recipient: str,
+        purpose: Reason,
+        released: ReleasedAction,
+        call: PortCall,
+    ) -> ShareRecord:
+        ...
         # requires released.passphrase_verified; watermark + recipient-bound expiring link; share_log append (phase 1 body, phase 0 signature + refusal path)
 
+
 # nour/vault/placeholders.py
-class Placeholder(BaseModel, frozen=True): coat: CoatId; path: tuple[str, ...]; raw: str   # {{bank.buzz-avenue.iban}}
+class Placeholder(BaseModel, frozen=True):
+    coat: CoatId
+    path: tuple[str, ...]
+    raw: str  # {{bank.buzz-avenue.iban}}
+
+
 def find_placeholders(text: str) -> list[Placeholder]: ...
-def to_ref(p: Placeholder, coat: CoatConfig) -> str: ...          # "vault://buzz-avenue/banking/receiving#iban"
+def to_ref(
+    p: Placeholder, coat: CoatConfig
+) -> str: ...  # "vault://buzz-avenue/banking/receiving#iban"
+
 
 # nour/vault/renderer.py
-class RenderedDocument(BaseModel, frozen=True): storage_ref: str; sha256: Hash; fills: dict[str, str]; size: int   # placeholder → last4
+class RenderedDocument(BaseModel, frozen=True):
+    storage_ref: str
+    sha256: Hash
+    fills: dict[str, str]
+    size: int  # placeholder → last4
+
+
 class DocumentRenderer:
     """§10 §11: the only module that constructs RenderWitness. Receiving-bank placeholders on invoice/quote templates
     fill without approval (§10 exception); any other Tier 2 placeholder needs released.passphrase_verified or raises
     Refusal. Output goes straight to object storage; the caller gets refs, hash and last4 only."""
-    def __init__(self, vault: VaultStore, cfg: NourConfig, objects: ObjectStoragePort, guard: LeakGuard, idgen: IdGenerator) -> None: ...
-    def render(self, template_id: str, coat_id: CoatId, data: Mapping[str, SafeStr], released: ReleasedAction | None, call: PortCall) -> RenderedDocument: ...
+
+    def __init__(
+        self,
+        vault: VaultStore,
+        cfg: NourConfig,
+        objects: ObjectStoragePort,
+        guard: LeakGuard,
+        idgen: IdGenerator,
+    ) -> None: ...
+    def render(
+        self,
+        template_id: str,
+        coat_id: CoatId,
+        data: Mapping[str, SafeStr],
+        released: ReleasedAction | None,
+        call: PortCall,
+    ) -> RenderedDocument: ...
+
 
 # nour/vault/beneficiaries.py
 class BeneficiaryChangeProposal(BaseModel, frozen=True):
-    coat_id: CoatId; name: str; existing_id: Ulid | None; proposed_ref: SecretRef | None; source_event_id: Ulid; callback_required: Literal[True] = True
+    coat_id: CoatId
+    name: str
+    existing_id: Ulid | None
+    proposed_ref: SecretRef | None
+    source_event_id: Ulid
+    callback_required: Literal[True] = True
+
+
 class BeneficiaryService:
     """§10 §13 invoice-redirect fraud: propose_change NEVER mutates the registry; registry changes are tier K and
     require callback verification (phase 2 body)."""
+
     def __init__(self, sf: SessionFactory, clock: Clock, idgen: IdGenerator) -> None: ...
     def lookup(self, coat_id: CoatId, name: str) -> BeneficiaryRow | None: ...
     def is_known(self, coat_id: CoatId, name_or_ref: str) -> bool: ...
-    def propose_change(self, coat_id: CoatId, name: str, proposed_ref: SecretRef | None, source_event_id: Ulid) -> BeneficiaryChangeProposal: ...
+    def propose_change(
+        self, coat_id: CoatId, name: str, proposed_ref: SecretRef | None, source_event_id: Ulid
+    ) -> BeneficiaryChangeProposal: ...
 ```
 
 ### 3.14 Records (`nour/records/`) — CRM, ledger, card, memory (wave 2)
@@ -1159,63 +2336,167 @@ class BeneficiaryService:
 ```python
 # nour/records/crm.py
 class ContactIn(BaseModel, frozen=True):
-    name: SafeStr; org: SafeStr | None; role: str | None; channels: dict[str, str]; language: str; register: str
-    consent_status: str = "unknown"; source: str
+    name: SafeStr
+    org: SafeStr | None
+    role: str | None
+    channels: dict[str, str]
+    language: str
+    register: str
+    consent_status: str = "unknown"
+    source: str
+
+
 class CrmStore(CounterpartLookup):
     """§9 §15: partitioned by (coat_id, desk) through DeskWallGuard; DNC is a global side table (§9 'a no anywhere')."""
+
     def __init__(self, sf: SessionFactory, clock: Clock, idgen: IdGenerator) -> None: ...
     def upsert_contact(self, coat_id: CoatId, data: ContactIn, audit_id: Ulid) -> ContactRow: ...
     def find_by_address(self, coat_id: CoatId, address: str) -> ContactRow | None: ...
     def is_known(self, coat_id: CoatId, desk: Desk, counterpart: str) -> bool: ...
     def set_dnc(self, address: str, reason: SafeStr, audit_id: Ulid) -> None: ...
     def is_dnc(self, address: str) -> bool: ...
-    def open_conversation(self, coat_id: CoatId, contact_id: ContactId | None, channel: Channel, thread_ref: str, bucket: str, audit_id: Ulid) -> ConversationRow: ...
+    def open_conversation(
+        self,
+        coat_id: CoatId,
+        contact_id: ContactId | None,
+        channel: Channel,
+        thread_ref: str,
+        bucket: str,
+        audit_id: Ulid,
+    ) -> ConversationRow: ...
     def find_conversation(self, channel: Channel, thread_ref: str) -> ConversationRow | None: ...
-    def add_message(self, conversation_id: Ulid, *, direction: str, body_ref: str, language: str, sent_by: str, approval_id: Ulid | None,
-                    critic_score: float | None, provider_msg_id: str | None, audio_ref: str | None, audit_id: Ulid) -> MessageRow: ...
-    def purge_expired_audio(self, now: datetime) -> int: ...          # §9 audio deleted after 7 days
+    def add_message(
+        self,
+        conversation_id: Ulid,
+        *,
+        direction: str,
+        body_ref: str,
+        language: str,
+        sent_by: str,
+        approval_id: Ulid | None,
+        critic_score: float | None,
+        provider_msg_id: str | None,
+        audio_ref: str | None,
+        audit_id: Ulid,
+    ) -> MessageRow: ...
+    def purge_expired_audio(self, now: datetime) -> int: ...  # §9 audio deleted after 7 days
     def due_followups(self, coat_id: CoatId, now: datetime) -> list[ContactRow]: ...
-    def create_task(self, coat_id: CoatId | None, title: SafeStr, owner_type: str, owner_ref: str | None, due: datetime | None, source: str, audit_id: Ulid) -> TaskRow: ...
+    def create_task(
+        self,
+        coat_id: CoatId | None,
+        title: SafeStr,
+        owner_type: str,
+        owner_ref: str | None,
+        due: datetime | None,
+        source: str,
+        audit_id: Ulid,
+    ) -> TaskRow: ...
     def open_tasks(self, coat_id: CoatId | None) -> list[TaskRow]: ...
 
+
 # nour/records/ledger.py
-class PnL(BaseModel, frozen=True): coat_id: CoatId | None; experiment_id: Ulid | None; period: tuple[date, date]; money_in: Money; money_out: Money; model_cost: Money
+class PnL(BaseModel, frozen=True):
+    coat_id: CoatId | None
+    experiment_id: Ulid | None
+    period: tuple[date, date]
+    money_in: Money
+    money_out: Money
+    model_cost: Money
+
+
 class Ledger:
     """§10: every dirham. record_spend requires a CardAuthorization (a type only CardIssuerPort returns) — there is no
     method that records money out without one."""
+
     def __init__(self, sf: SessionFactory, clock: Clock, idgen: IdGenerator) -> None: ...
-    def record_spend(self, auth: CardAuthorization, *, coat_id: CoatId, counterpart_ref: str, approval_id: Ulid | None,
-                     experiment_id: Ulid | None, task_id: Ulid | None, audit_id: Ulid) -> TransactionRow: ...
-    def record_declined(self, holder: BudgetHolder, amount: Money, merchant: str, reason: str, audit_id: Ulid, coat_id: CoatId) -> TransactionRow: ...
-    def record_in(self, coat_id: CoatId, amount: Money, counterpart_ref: str, bank_ref: str, audit_id: Ulid) -> TransactionRow: ...
-    def prepare_payment(self, coat_id: CoatId, beneficiary_id: Ulid, amount: Money, reference: SafeStr, approval_id: Ulid, audit_id: Ulid) -> TransactionRow: ...  # status prepared; owner releases (§10 maker-checker)
-    def record_model_cost(self, holder: BudgetHolder, usage: ModelUsage, audit_id: Ulid | None) -> None: ...
+    def record_spend(
+        self,
+        auth: CardAuthorization,
+        *,
+        coat_id: CoatId,
+        counterpart_ref: str,
+        approval_id: Ulid | None,
+        experiment_id: Ulid | None,
+        task_id: Ulid | None,
+        audit_id: Ulid,
+    ) -> TransactionRow: ...
+    def record_declined(
+        self,
+        holder: BudgetHolder,
+        amount: Money,
+        merchant: str,
+        reason: str,
+        audit_id: Ulid,
+        coat_id: CoatId,
+    ) -> TransactionRow: ...
+    def record_in(
+        self, coat_id: CoatId, amount: Money, counterpart_ref: str, bank_ref: str, audit_id: Ulid
+    ) -> TransactionRow: ...
+    def prepare_payment(
+        self,
+        coat_id: CoatId,
+        beneficiary_id: Ulid,
+        amount: Money,
+        reference: SafeStr,
+        approval_id: Ulid,
+        audit_id: Ulid,
+    ) -> TransactionRow: ...  # status prepared; owner releases (§10 maker-checker)
+    def record_model_cost(
+        self, holder: BudgetHolder, usage: ModelUsage, audit_id: Ulid | None
+    ) -> None: ...
     def spent_today(self, holder: BudgetHolder, day: date) -> Money: ...
     def spent_month(self, holder: BudgetHolder, month: date) -> Money: ...
-    def pnl(self, coat_id: CoatId | None, experiment_id: Ulid | None, period: tuple[date, date]) -> PnL: ...
+    def pnl(
+        self, coat_id: CoatId | None, experiment_id: Ulid | None, period: tuple[date, date]
+    ) -> PnL: ...
+
+
 # nour/records/card.py
 class CardService:
     """§10: wraps CardIssuerPort; the cap is the issuer's. authorize → CardAuthorization or CardDeclined (and a declined ledger row)."""
-    def __init__(self, issuer: CardIssuerPort, ledger: Ledger, sf: SessionFactory, cfg: SpendTiersConfig) -> None: ...
+
+    def __init__(
+        self, issuer: CardIssuerPort, ledger: Ledger, sf: SessionFactory, cfg: SpendTiersConfig
+    ) -> None: ...
     def card_for(self, holder: BudgetHolder) -> str: ...
-    def authorize(self, call: PortCall, holder: BudgetHolder, amount: Money, merchant: str) -> CardAuthorization: ...
+    def authorize(
+        self, call: PortCall, holder: BudgetHolder, amount: Money, merchant: str
+    ) -> CardAuthorization: ...
     def freeze_all(self, call: PortCall) -> list[str]: ...
     def unfreeze_all(self, call: PortCall) -> list[str]: ...
     def remaining(self, holder: BudgetHolder, month: date) -> Money: ...
 
+
 # nour/records/memory.py
 class MemoryRecordIn(BaseModel, frozen=True):
-    store: MemoryKind; content: SafeStr; source_refs: list[str]; confidence: float; expires_at: datetime | None; coat_id: CoatId | None = None
+    store: MemoryKind
+    content: SafeStr
+    source_refs: list[str]
+    confidence: float
+    expires_at: datetime | None
+    coat_id: CoatId | None = None
+
+
 class MemoryStore:
     """§8: namespace and desk come from the token, never from an argument; Operator sessions cannot see owner_profile
     rows (ASSISTANT_ONLY scope on store='owner_profile' via DeskWallGuard + CHECK)."""
-    def __init__(self, sf: SessionFactory, index: VectorIndexPort, guard: LeakGuard, clock: Clock, idgen: IdGenerator) -> None: ...
+
+    def __init__(
+        self,
+        sf: SessionFactory,
+        index: VectorIndexPort,
+        guard: LeakGuard,
+        clock: Clock,
+        idgen: IdGenerator,
+    ) -> None: ...
     def write_episodic(self, rec: MemoryRecordIn, audit_id: Ulid) -> MemoryRecordRow: ...
-    def propose(self, rec: MemoryRecordIn, audit_id: Ulid) -> MemoryRecordRow: ...     # semantic/procedural/owner_profile: approved_by_owner=False
+    def propose(
+        self, rec: MemoryRecordIn, audit_id: Ulid
+    ) -> MemoryRecordRow: ...  # semantic/procedural/owner_profile: approved_by_owner=False
     def approve(self, record_id: Ulid, released: ReleasedAction) -> None: ...
     def recall(self, query: str, k: int = 8) -> list[MemoryRecordRow]: ...
     def pending_proposals(self) -> list[MemoryRecordRow]: ...
-    def everything_about_owner(self) -> list[MemoryRecordRow]: ...                    # Assistant only (scope)
+    def everything_about_owner(self) -> list[MemoryRecordRow]: ...  # Assistant only (scope)
     def delete_line(self, record_id: Ulid, audit_id: Ulid) -> None: ...
 ```
 
@@ -1225,31 +2506,70 @@ class MemoryStore:
 # nour/events/bus.py
 class EventBus:
     """§4: durable queue over inbox_event. Dedup by (source_kind, provider_msg_id) unique index (§13 replay)."""
+
     def __init__(self, sf: SessionFactory, clock: Clock, idgen: IdGenerator) -> None: ...
-    def publish(self, raw: RawInbound, desk: Desk, coat_id: CoatId | None, *, priority: int = 0) -> Ulid | None: ...   # None if duplicate
-    def next_for(self, token: DeskToken) -> RawInbound | None: ...   # oldest unacked for token.desk; priority desc; lock_until lease (SKIP LOCKED on PG)
+    def publish(
+        self, raw: RawInbound, desk: Desk, coat_id: CoatId | None, *, priority: int = 0
+    ) -> Ulid | None: ...  # None if duplicate
+    def next_for(
+        self, token: DeskToken
+    ) -> (
+        RawInbound | None
+    ): ...  # oldest unacked for token.desk; priority desc; lock_until lease (SKIP LOCKED on PG)
     def ack(self, event_id: Ulid, token: DeskToken) -> None: ...
     def park(self, event_id: Ulid, until: datetime | None, token: DeskToken) -> None: ...
     def pending(self, desk: Desk) -> int: ...
+
+
 # nour/events/router.py
 class Router:
     """§5 routing rules. Owner thread, owner mailbox, staff lines, second channel → ASSISTANT. Coat WhatsApp line →
     the coat; for Buzz Avenue → OPERATOR (strangers are the Operator's). Coat email → OPERATOR only when its
     thread_ref matches an Operator-partition conversation, else ASSISTANT. Phone notifications → OPERATOR.
     Timers → per timer_name (calendar.yaml). Approvals/handoffs/readbacks → the desk named in the payload."""
-    def __init__(self, cfg: NourConfig, owner_number: str, operator_threads: Callable[[Channel, str], bool]) -> None: ...
+
+    def __init__(
+        self, cfg: NourConfig, owner_number: str, operator_threads: Callable[[Channel, str], bool]
+    ) -> None: ...
     def route(self, raw: RawInbound) -> RoutedInbound: ...
+
+
 # nour/events/scheduler.py
 class Scheduler:
     """§12 daily rhythm. Emits each timer exactly once per slot (timer_slot append-only table, unique(timer_name, slot))."""
-    def __init__(self, cfg: CalendarConfig, bus: EventBus, sf: SessionFactory, clock: Clock, idgen: IdGenerator, token: GovernanceToken) -> None: ...
-    def tick(self, now: datetime) -> list[str]: ...        # morning_brief, evening_close, nightly_reflection, weekly_review, auditor_run, notify_sweep, owner_silence_check, cadence_tick
+
+    def __init__(
+        self,
+        cfg: CalendarConfig,
+        bus: EventBus,
+        sf: SessionFactory,
+        clock: Clock,
+        idgen: IdGenerator,
+        token: GovernanceToken,
+    ) -> None: ...
+    def tick(
+        self, now: datetime
+    ) -> list[
+        str
+    ]: ...  # morning_brief, evening_close, nightly_reflection, weekly_review, auditor_run, notify_sweep, owner_silence_check, cadence_tick
     def due(self, now: datetime) -> list[tuple[str, datetime]]: ...
+
+
 # nour/events/adapters.py
 class InboundAdapters:
     """Ingest for polling ports and fakes: pulls every port's inbound queue, converts to RawInbound through the
     IngressRedactor (same function the webhook path uses) and publishes."""
-    def __init__(self, bus: EventBus, router: Router, redactor: RedactorLike, ports: PortSet, clock: Clock, idgen: IdGenerator, token: GovernanceToken) -> None: ...
+
+    def __init__(
+        self,
+        bus: EventBus,
+        router: Router,
+        redactor: RedactorLike,
+        ports: PortSet,
+        clock: Clock,
+        idgen: IdGenerator,
+        token: GovernanceToken,
+    ) -> None: ...
     def poll(self) -> int: ...
     def accept_whatsapp(self, msg: InboundWhatsApp) -> Ulid | None: ...
     def accept_email(self, mail: InboundEmail, kind: Literal["coat", "owner"]) -> Ulid | None: ...
@@ -1263,15 +2583,25 @@ class InboundAdapters:
 # nour/policy/registry.py
 class ToolView:
     """Immutable per-desk view: the only source of tool schemas the model sees (§4 'no tool outside its desk')."""
+
     def __init__(self, desk: Desk, specs: Mapping[str, ToolSpec]) -> None: ...
     def schemas(self) -> list[ToolSchema]: ...
     def get(self, name: str) -> ToolSpec | None: ...
+
+
 class ToolRegistry:
     def register(self, spec: ToolSpec) -> None: ...
-    def spec(self, name: str) -> ToolSpec: ...                      # KeyError → UNKNOWN_TOOL refusal
-    def view(self, desk: Desk) -> ToolView: ...                     # OPERATOR view = specs with desk in {OPERATOR, BOTH}
-    def validate(self, cfg: NourConfig) -> list[str]: ...           # every spec.category ∈ cfg.known_categories(); every phase-0 capability has its tools
+    def spec(self, name: str) -> ToolSpec: ...  # KeyError → UNKNOWN_TOOL refusal
+    def view(
+        self, desk: Desk
+    ) -> ToolView: ...  # OPERATOR view = specs with desk in {OPERATOR, BOTH}
+    def validate(
+        self, cfg: NourConfig
+    ) -> list[
+        str
+    ]: ...  # every spec.category ∈ cfg.known_categories(); every phase-0 capability has its tools
     def all(self) -> list[ToolSpec]: ...
+
 
 # nour/policy/tiering.py
 class TierResolver:
@@ -1292,32 +2622,70 @@ class TierResolver:
      12 outreach window (Operator outbound sends outside calendar.outreach_window) → deferred_until
      13 read-back: event origin VOICE ∧ category ∈ readback_categories ∧ not proposal.readback_confirmed → readback_required
     data_tier = spec.data_tier_max; in_owner_name = spec.in_owner_name or the chosen mailbox is an owner mailbox; irreversible = spec.irreversible."""
-    def __init__(self, cfg: NourConfig, registry: ToolRegistry, crm: CrmStore, beneficiaries: BeneficiaryService,
-                 freeze: FreezeLike, category_state: "CategoryState", clock: Clock) -> None: ...   # crm.is_known / is_dnc, beneficiaries.is_known
+
+    def __init__(
+        self,
+        cfg: NourConfig,
+        registry: ToolRegistry,
+        crm: CrmStore,
+        beneficiaries: BeneficiaryService,
+        freeze: FreezeLike,
+        category_state: "CategoryState",
+        clock: Clock,
+    ) -> None: ...  # crm.is_known / is_dnc, beneficiaries.is_known
     def resolve(self, proposal: ActionProposal, event: Event) -> TierDecision: ...
     def category_of(self, proposal: ActionProposal) -> ActionCategory: ...
+
+
 class CategoryState:
     """§6 graduated autonomy state per (coat, category): phase 0 reads it; promotion/demotion jobs are phase 1."""
+
     def __init__(self, sf: SessionFactory, clock: Clock, idgen: IdGenerator) -> None: ...
-    def tier_for(self, coat_id: CoatId, category: ActionCategory, default: ActionTier) -> ActionTier: ...
-    def demote(self, coat_id: CoatId, category: ActionCategory, reason: SafeStr, audit_id: Ulid) -> None: ...   # incident → K immediately
+    def tier_for(
+        self, coat_id: CoatId, category: ActionCategory, default: ActionTier
+    ) -> ActionTier: ...
+    def demote(
+        self, coat_id: CoatId, category: ActionCategory, reason: SafeStr, audit_id: Ulid
+    ) -> None: ...  # incident → K immediately
+
 
 # nour/policy/approvals.py
 class ApprovalRequest(BaseModel, frozen=True):
-    id: Ulid; action: ResolvedAction; draft: SafeStr | None; requested_at: datetime; expires_at: datetime
+    id: Ulid
+    action: ResolvedAction
+    draft: SafeStr | None
+    requested_at: datetime
+    expires_at: datetime
+
+
 class ApprovalsQueue:
     """§6 §12. enqueue asserts decision.tier == K. decide() derives proof from the signed decision Event and the
     second_channel_challenge table: approve requires event.auth.owner_verified; high_impact also passphrase_verified;
     second_channel_required also confirmations.is_confirmed(approval_id); otherwise AuthError (→ watchdog).
     Rejections need a reason (decision_journal, append-only). The returned ReleasedAction carries the ReleaseToken
     minted through `mint` (the executor's minting function, injected at construction)."""
-    def __init__(self, sf: SessionFactory, audit: AuditLog, auth: Authenticator, confirmations: SecondChannelConfirmations,
-                 notifier: NotifierLike, mint: Callable[[ActionProposal, ActionTier, Ulid | None, str], ReleaseToken],
-                 clock: Clock, idgen: IdGenerator, ttl: timedelta = timedelta(hours=72)) -> None: ...
-    def enqueue(self, action: ResolvedAction, draft: SafeStr | None, call: PortCall) -> ApprovalRequest: ...
+
+    def __init__(
+        self,
+        sf: SessionFactory,
+        audit: AuditLog,
+        auth: Authenticator,
+        confirmations: SecondChannelConfirmations,
+        notifier: NotifierLike,
+        mint: Callable[[ActionProposal, ActionTier, Ulid | None, str], ReleaseToken],
+        clock: Clock,
+        idgen: IdGenerator,
+        ttl: timedelta = timedelta(hours=72),
+    ) -> None: ...
+    def enqueue(
+        self, action: ResolvedAction, draft: SafeStr | None, call: PortCall
+    ) -> ApprovalRequest: ...
     def pending(self, coat_id: CoatId | None = None) -> list[ApprovalRequest]: ...
-    def decide(self, decision: ApprovalDecisionPayload, event: Event, call: PortCall) -> ReleasedAction | None: ...
+    def decide(
+        self, decision: ApprovalDecisionPayload, event: Event, call: PortCall
+    ) -> ReleasedAction | None: ...
     def expire(self, now: datetime) -> int: ...
+
 
 # nour/policy/handoff.py
 class HandoffQueue:
@@ -1325,7 +2693,16 @@ class HandoffQueue:
     (coat knowledge-pack key, Operator-partition contact, config path, Operator task) and the text passes LeakGuard
     and the TaskHandoff validator; publishes a HANDOFF inbox event routed to OPERATOR. take(OperatorToken) is the
     only read. There is no method in the other direction."""
-    def __init__(self, sf: SessionFactory, bus: EventBus, cfg: NourConfig, crm: CrmStore, clock: Clock, idgen: IdGenerator) -> None: ...
+
+    def __init__(
+        self,
+        sf: SessionFactory,
+        bus: EventBus,
+        cfg: NourConfig,
+        crm: CrmStore,
+        clock: Clock,
+        idgen: IdGenerator,
+    ) -> None: ...
     def push(self, handoff: TaskHandoff, token: AssistantToken, call: PortCall) -> Ulid: ...
     def take(self, handoff_id: Ulid, token: OperatorToken) -> TaskHandoff: ...
 ```
@@ -1336,52 +2713,135 @@ class HandoffQueue:
 # nour/governance/freeze.py
 class FreezeGuard(FreezeLike):
     """Read side; cheap; consulted by TierResolver (rule 11) and ToolExecutor before every side effect."""
+
     def __init__(self, sf: SessionFactory) -> None: ...
     def scope(self) -> frozenset[FreezeScope]: ...
-    def targets(self, scope: FreezeScope) -> frozenset[str]: ...   # channel ids / coat ids / categories under a targeted freeze
-    def assert_allowed(self, spec: ToolSpec, coat_id: CoatId | None, category: ActionCategory) -> None: ...   # FrozenError
+    def targets(
+        self, scope: FreezeScope
+    ) -> frozenset[str]: ...  # channel ids / coat ids / categories under a targeted freeze
+    def assert_allowed(
+        self, spec: ToolSpec, coat_id: CoatId | None, category: ActionCategory
+    ) -> None: ...  # FrozenError
+
+
 class KillSwitch:
     """§2 §12 §13. engage(): freeze_state ⊇ {ALL_OUTBOUND}, cards.freeze_all, secrets.revoke_all(['operator/', 'assistant/']),
     queues paused; logging continues (audit span). Under ALL_OUTBOUND only ToolSpec.exempt_from_kill tools run
     (owner-thread replies, second-channel alerts), so the owner's thread keeps working. release() requires
     released.passphrase_verified AND released.second_channel_confirmed, else AuthError."""
-    def __init__(self, sf: SessionFactory, secrets: SecretsPort, cards: CardService, audit: AuditLog, notifier: NotifierLike,
-                 incidents: "IncidentService", clock: Clock, idgen: IdGenerator, token: GovernanceToken) -> None: ...
+
+    def __init__(
+        self,
+        sf: SessionFactory,
+        secrets: SecretsPort,
+        cards: CardService,
+        audit: AuditLog,
+        notifier: NotifierLike,
+        incidents: "IncidentService",
+        clock: Clock,
+        idgen: IdGenerator,
+        token: GovernanceToken,
+    ) -> None: ...
     def engage(self, reason: Reason, actor: Actor, event_id: Ulid | None) -> datetime: ...
     def release(self, released: ReleasedAction) -> None: ...
-    def freeze(self, scope: FreezeScope, reason: Reason, actor: Actor, *, target: str | None = None, event_id: Ulid | None = None) -> None: ...
+    def freeze(
+        self,
+        scope: FreezeScope,
+        reason: Reason,
+        actor: Actor,
+        *,
+        target: str | None = None,
+        event_id: Ulid | None = None,
+    ) -> None: ...
     def thaw(self, scope: FreezeScope, released: ReleasedAction) -> None: ...
     def state(self) -> frozenset[FreezeScope]: ...
-def detect_kill_command(text: str | None, constitution: Constitution) -> bool: ...   # fixed phrases, exact match after normalisation; used by ingress before enqueue
+
+
+def detect_kill_command(
+    text: str | None, constitution: Constitution
+) -> bool: ...  # fixed phrases, exact match after normalisation; used by ingress before enqueue
+
 
 # nour/governance/watchdog.py
 class Watchdog(AuthFailureSink):
     """§12 automatic freezes: loop (same proposal hash 3x with no new event), spend > N × daily expectation
     (monthly_cap/30), > N failed sends per hour, ANY authentication failure on a high-impact command (first wrong attempt)."""
-    def __init__(self, cfg: SpendTiersConfig, ledger: Ledger, reader: AuditReader, kill: KillSwitch, incidents: "IncidentService",
-                 notifier: NotifierLike, sf: SessionFactory, clock: Clock, idgen: IdGenerator) -> None: ...
-    def observe(self, outcome: ActionOutcome, proposal: ActionProposal, event: Event) -> Ulid | None: ...   # incident id
-    def on_auth_failure(self, attempt: PassphraseAttempt) -> None: ...                                     # freeze HIGH_IMPACT + second-channel alert + incident
+
+    def __init__(
+        self,
+        cfg: SpendTiersConfig,
+        ledger: Ledger,
+        reader: AuditReader,
+        kill: KillSwitch,
+        incidents: "IncidentService",
+        notifier: NotifierLike,
+        sf: SessionFactory,
+        clock: Clock,
+        idgen: IdGenerator,
+    ) -> None: ...
+    def observe(
+        self, outcome: ActionOutcome, proposal: ActionProposal, event: Event
+    ) -> Ulid | None: ...  # incident id
+    def on_auth_failure(
+        self, attempt: PassphraseAttempt
+    ) -> None: ...  # freeze HIGH_IMPACT + second-channel alert + incident
     def daily_expectation(self, holder: BudgetHolder) -> Money: ...
-    def daily_checks(self, now: datetime) -> list[Ulid]: ...                                               # owner-silence (§14) thresholds → notify / deputy flag
+    def daily_checks(
+        self, now: datetime
+    ) -> list[Ulid]: ...  # owner-silence (§14) thresholds → notify / deputy flag
+
+
 # nour/governance/incidents.py
 class IncidentService(IncidentSink):
     """§12 incident playbook rows → first response, who is told, what is frozen."""
-    def __init__(self, sf: SessionFactory, notifier: NotifierLike, clock: Clock, idgen: IdGenerator) -> None: ...
-    def open(self, type: IncidentType, detected_by: Actor, first_response: SafeStr, frozen_scope: FreezeScope | None, event_id: Ulid | None) -> Ulid: ...
+
+    def __init__(
+        self, sf: SessionFactory, notifier: NotifierLike, clock: Clock, idgen: IdGenerator
+    ) -> None: ...
+    def open(
+        self,
+        type: IncidentType,
+        detected_by: Actor,
+        first_response: SafeStr,
+        frozen_scope: FreezeScope | None,
+        event_id: Ulid | None,
+    ) -> Ulid: ...
     def resolve(self, incident_id: Ulid, postmortem_ref: str) -> None: ...
     def open_incidents(self) -> list[IncidentRow]: ...
 
+
 # nour/governance/owner_channel.py
 class OwnerMessageKind(StrEnum):
-    NOTIFY = "notify"; ALERT = "alert"; BRIEF = "brief"; READBACK = "readback"; APPROVAL = "approval"; QUOTE_INSTRUCTION = "quote_instruction"; REPLY = "reply"; AUDITOR = "auditor"
+    NOTIFY = "notify"
+    ALERT = "alert"
+    BRIEF = "brief"
+    READBACK = "readback"
+    APPROVAL = "approval"
+    QUOTE_INSTRUCTION = "quote_instruction"
+    REPLY = "reply"
+    AUDITOR = "auditor"
+
+
 class OwnerChannel(NotifierLike):
     """§12: owner thread + second channel. Quiet hours 22:00–07:00: non-emergencies are parked
     (pending_owner_message.parked_until = next 07:00) and sent by flush_due(); initiative budget 5/day for unprompted
     kinds (NOTIFY/ALERT non-emergency) — excess rolls into the next brief. Replies to the owner's own messages are never parked."""
-    def __init__(self, whatsapp: WhatsAppPort, second: SecondChannelPort, sf: SessionFactory, cfg: CalendarConfig, owner_number: str,
-                 owner_line: str, guard: LeakGuard, clock: Clock, idgen: IdGenerator) -> None: ...
-    def notify(self, text: SafeStr, kind: str, *, call: PortCall, emergency: bool = False) -> Ulid | None: ...
+
+    def __init__(
+        self,
+        whatsapp: WhatsAppPort,
+        second: SecondChannelPort,
+        sf: SessionFactory,
+        cfg: CalendarConfig,
+        owner_number: str,
+        owner_line: str,
+        guard: LeakGuard,
+        clock: Clock,
+        idgen: IdGenerator,
+    ) -> None: ...
+    def notify(
+        self, text: SafeStr, kind: str, *, call: PortCall, emergency: bool = False
+    ) -> Ulid | None: ...
     def reply(self, text: SafeStr, *, call: PortCall) -> Ulid: ...
     def alert_second_channel(self, text: SafeStr, *, call: PortCall) -> None: ...
     def flush_due(self, now: datetime, call: PortCall) -> int: ...
@@ -1394,34 +2854,85 @@ class OwnerChannel(NotifierLike):
 ```python
 # nour/tools/common.py — registered for DeskScope.BOTH
 class CommonToolDeps(BaseModel, arbitrary_types_allowed=True):
-    cfg: NourConfig; ports: PortSet; crm: CrmStore; ledger: Ledger; cards: CardService; memory: MemoryStore; owner: OwnerChannel; guard: LeakGuard; clock: Clock; idgen: IdGenerator
+    cfg: NourConfig
+    ports: PortSet
+    crm: CrmStore
+    ledger: Ledger
+    cards: CardService
+    memory: MemoryStore
+    owner: OwnerChannel
+    guard: LeakGuard
+    clock: Clock
+    idgen: IdGenerator
+
+
 def register_common(registry: ToolRegistry, deps: CommonToolDeps) -> None:
     """reply_whatsapp (outbound, category customer_reply), send_email (outbound; coat mailbox only), crm.upsert_contact,
     crm.set_dnc, ledger.spend (spends; CardService.authorize → Ledger.record_spend), memory.write_episodic, memory.propose,
     owner.notify (exempt_from_kill), owner.reply (exempt_from_kill), task.create, task.update, escalate_to_owner (A)."""
+
+
 # nour/tools/assistant.py — DeskScope.ASSISTANT
-class AssistantToolDeps(CommonToolDeps): vault: VaultStore; renderer: DocumentRenderer; beneficiaries: BeneficiaryService; handoffs: HandoffQueue; owner_mail: OwnerMailboxPort
+class AssistantToolDeps(CommonToolDeps):
+    vault: VaultStore
+    renderer: DocumentRenderer
+    beneficiaries: BeneficiaryService
+    handoffs: HandoffQueue
+    owner_mail: OwnerMailboxPort
+
+
 def register_assistant(registry: ToolRegistry, deps: AssistantToolDeps) -> None:
     """vault.search_meta (A), vault.retrieve (K, high_impact, data_tier 2), vault.share (K, high_impact), vault.render_document
     (A to draft), payment.prepare (K, high_impact, category money_out), beneficiary.propose_change (K, always), mailbox.owner.draft,
     mailbox.owner.send (K, in_owner_name), handoff.to_operator (category gate_handoff, starts at K), owner.readback."""
+
+
 # nour/tools/operator.py — DeskScope.OPERATOR
 def register_operator(registry: ToolRegistry, deps: CommonToolDeps) -> None:
     """phone.read_notifications (A); phone.open_app, sandbox.run, ads.set_budget registered with handler=None, phase 3 (NotInPhase)."""
-def register_all(registry: ToolRegistry, deps: CommonToolDeps | AssistantToolDeps, token: DeskToken) -> None: ...   # by token type; never registers assistant tools for an OperatorToken
+
+
+def register_all(
+    registry: ToolRegistry, deps: CommonToolDeps | AssistantToolDeps, token: DeskToken
+) -> None: ...  # by token type; never registers assistant tools for an OperatorToken
+
 
 # nour/tools/routines.py
 class BriefService:
     """§12 morning brief (yesterday's actions and money with last4 only, replies waiting, calendar, cash position per coat,
     three decisions, proposed memory additions, every found_instruction quoted), evening close, approvals view."""
-    def __init__(self, reader: AuditReader, approvals: ApprovalsQueue, ledger: Ledger, memory: MemoryStore, owner: OwnerChannel,
-                 vault: VaultStore | None, sf: SessionFactory, cfg: NourConfig, guard: LeakGuard, clock: Clock) -> None: ...
+
+    def __init__(
+        self,
+        reader: AuditReader,
+        approvals: ApprovalsQueue,
+        ledger: Ledger,
+        memory: MemoryStore,
+        owner: OwnerChannel,
+        vault: VaultStore | None,
+        sf: SessionFactory,
+        cfg: NourConfig,
+        guard: LeakGuard,
+        clock: Clock,
+    ) -> None: ...
     def morning(self, day: date, call: PortCall) -> Ulid: ...
     def evening(self, day: date, call: PortCall) -> Ulid: ...
     def weekly(self, day: date, call: PortCall) -> Ulid: ...
+
+
 class ReflectService:
     """§8 nightly reflection: proposals only (approved_by_owner=False); nothing enters procedural memory without approval."""
-    def __init__(self, reader: AuditReader, memory: MemoryStore, model: ModelPort, prompts: PromptAssembler, guard: LeakGuard, clock: Clock, idgen: IdGenerator) -> None: ...
+
+    def __init__(
+        self,
+        reader: AuditReader,
+        memory: MemoryStore,
+        model: ModelPort,
+        prompts: PromptAssembler,
+        guard: LeakGuard,
+        clock: Clock,
+        idgen: IdGenerator,
+    ) -> None: ...
     def nightly(self, day: date, call: PortCall) -> list[Ulid]: ...
 ```
 
@@ -1429,44 +2940,118 @@ class ReflectService:
 
 ```python
 # nour/agent/runtime.py
-class Plan(BaseModel, frozen=True): proposals: list[ActionProposal]; reply_text: SafeStr | None; model_meta: dict[str, str]
+class Plan(BaseModel, frozen=True):
+    proposals: list[ActionProposal]
+    reply_text: SafeStr | None
+    model_meta: dict[str, str]
+
+
 class DeskRuntime:
     """§4 Plan. Parses ModelToolCalls into ActionProposals (coat/counterpart/amount/reason from arguments; tier and
     data_tier_touched kept only as model_claimed_*). Unknown tools become proposals the gate refuses and logs."""
-    def __init__(self, token: DeskToken, model: "ModelRouter", prompts: PromptAssembler, memory: MemoryStore, crm: CrmStore, tools: ToolView,
-                 cfg: NourConfig, guard: LeakGuard, idgen: IdGenerator, max_tool_calls: int = 8) -> None: ...
+
+    def __init__(
+        self,
+        token: DeskToken,
+        model: "ModelRouter",
+        prompts: PromptAssembler,
+        memory: MemoryStore,
+        crm: CrmStore,
+        tools: ToolView,
+        cfg: NourConfig,
+        guard: LeakGuard,
+        idgen: IdGenerator,
+        max_tool_calls: int = 8,
+    ) -> None: ...
     def plan(self, event: Event, handoff: TaskHandoff | None = None) -> Plan: ...
     def parse(self, calls: Sequence[ModelToolCall], event: Event) -> list[ActionProposal]: ...
+
+
 # nour/agent/router.py
 class ModelRouter(ModelPort):
     """§4 §12 §14: PRIMARY → FALLBACK on ModelUnavailable; sets freeze AUTONOMOUS + opens MODEL_OUTAGE incident; records cost
     to the ledger (ai_models_within_operator for the Operator); records the response in model_trace for Replayer."""
-    def __init__(self, ports: Mapping[ModelRole, ModelPort], role: ModelRole, kill: KillSwitch, incidents: IncidentService, ledger: Ledger,
-                 holder: BudgetHolder, sf: SessionFactory, guard: LeakGuard, clock: Clock, idgen: IdGenerator) -> None: ...
+
+    def __init__(
+        self,
+        ports: Mapping[ModelRole, ModelPort],
+        role: ModelRole,
+        kill: KillSwitch,
+        incidents: IncidentService,
+        ledger: Ledger,
+        holder: BudgetHolder,
+        sf: SessionFactory,
+        guard: LeakGuard,
+        clock: Clock,
+        idgen: IdGenerator,
+    ) -> None: ...
     def complete(self, req: ModelRequest) -> ModelResponse: ...
-    vendor: str; model: str
+
+    vendor: str
+    model: str
+
+
 # nour/agent/executor.py
 class ToolExecutor:
     """§6: execute() verifies release.call_id == proposal.id, that the nonce is an unburnt `releases` row, burns it, then
     freeze.assert_allowed, args_model validation, and runs spec.handler under ExecContext(PortCall). mint() is imported
     only by nour.agent.dispatcher and nour.policy.approvals (import-linter contract)."""
-    def __init__(self, registry: ToolRegistry, sf: SessionFactory, freeze: FreezeGuard, cfg: NourConfig, settings: Settings, clock: Clock, idgen: IdGenerator, token: DeskToken) -> None: ...
-    def mint(self, proposal: ActionProposal, tier: ActionTier, approval_id: Ulid | None, minted_by: Literal["gate", "approval"]) -> ReleaseToken: ...
-    def execute(self, proposal: ActionProposal, release: ReleaseToken, event: Event, call: PortCall) -> ToolResult: ...
+
+    def __init__(
+        self,
+        registry: ToolRegistry,
+        sf: SessionFactory,
+        freeze: FreezeGuard,
+        cfg: NourConfig,
+        settings: Settings,
+        clock: Clock,
+        idgen: IdGenerator,
+        token: DeskToken,
+    ) -> None: ...
+    def mint(
+        self,
+        proposal: ActionProposal,
+        tier: ActionTier,
+        approval_id: Ulid | None,
+        minted_by: Literal["gate", "approval"],
+    ) -> ReleaseToken: ...
+    def execute(
+        self, proposal: ActionProposal, release: ReleaseToken, event: Event, call: PortCall
+    ) -> ToolResult: ...
     def execute_released(self, released: ReleasedAction, call: PortCall) -> ToolResult: ...
+
+
 # nour/agent/dispatcher.py
-class DispatchResult(BaseModel, frozen=True): outcomes: list[ActionOutcome]
+class DispatchResult(BaseModel, frozen=True):
+    outcomes: list[ActionOutcome]
+
+
 class ActionGate:
     """§4 Act/Check/Log: the ONLY caller of ToolExecutor.mint for tiers A/N and the only path to execute(). Every branch —
     refused / queued (K) / readback_pending / deferred / frozen / declined / failed / executed / notified / dry_run —
     runs inside AuditLog.span and records proposal.id to dispatch_sink. Outbound drafts are scored by the critic first;
     a failing score refuses. N outcomes call owner.notify(within the hour)."""
-    def __init__(self, resolver: TierResolver, executor: ToolExecutor, approvals: ApprovalsQueue, readback: ReadBackLedger, audit: AuditLog,
-                 owner: OwnerChannel, freeze: FreezeGuard, critic: CriticLike, guard: LeakGuard, cfg: NourConfig, clock: Clock,
-                 dispatch_sink: Callable[[Ulid], None] | None = None) -> None: ...
+
+    def __init__(
+        self,
+        resolver: TierResolver,
+        executor: ToolExecutor,
+        approvals: ApprovalsQueue,
+        readback: ReadBackLedger,
+        audit: AuditLog,
+        owner: OwnerChannel,
+        freeze: FreezeGuard,
+        critic: CriticLike,
+        guard: LeakGuard,
+        cfg: NourConfig,
+        clock: Clock,
+        dispatch_sink: Callable[[Ulid], None] | None = None,
+    ) -> None: ...
     def dispatch(self, proposal: ActionProposal, event: Event) -> ActionOutcome: ...
     def dispatch_released(self, released: ReleasedAction, event: Event) -> ActionOutcome: ...
-    def refuse(self, proposal: ActionProposal, event: Event, code: RefusalCode, reason: Reason) -> ActionOutcome: ...
+    def refuse(
+        self, proposal: ActionProposal, event: Event, code: RefusalCode, reason: Reason
+    ) -> ActionOutcome: ...
 ```
 
 ### 3.20 Runtime (`nour/runtime/`, `nour/ingress/`, `nour/adapters/`) — loop, bootstrap, ingress, vendor adapters (wave 5)
@@ -1524,51 +3109,140 @@ class OpenAIModel(ModelPort):     likewise
 
 ```python
 # nour/testing/harness.py
-DEFAULT_START: datetime            # 2026-10-05 07:00 Asia/Dubai (a Monday: the 48-hour run crosses the Monday 08:00 weekly review)
+DEFAULT_START: datetime  # 2026-10-05 07:00 Asia/Dubai (a Monday: the 48-hour run crosses the Monday 08:00 weekly review)
+
+
 class Harness:
     """Wires SQLite file DB + default_fakes + ingress + scheduler + both desk loops + auditor in one process, each with its
     own token-bound SessionFactory (the wall is per session, so the test topology equals production's)."""
+
     @classmethod
-    def build(cls, tmp_path: Path, *, start: datetime = DEFAULT_START, policy: ModelPolicy | None = None, seed: int = 0, dry_run: bool = False,
-              tick: bool = False, config_dir: Path | None = None, prompts_dir: Path | None = None,
-              owner_number: str = "+971500000001", passphrase: str = "correct-horse-battery", second_channel_address: str = "owner@example.com") -> "Harness": ...
-    clock: FakeClock; cfg: NourConfig; settings: Settings; fakes: FakeSet; call_log: CallLog; guard: LeakGuard; idgen: IdGenerator
-    adapters, kill, confirmations, redactor, audit; desks: dict[Desk, DeskProcess]; ingress: Ingress; auditor: AuditorRunner; reader: AuditReader
-    kill: KillSwitch; dispatched: list[Ulid]; canary_iban: str; OWNER_NUMBER: str; PASSPHRASE: str
+    def build(
+        cls,
+        tmp_path: Path,
+        *,
+        start: datetime = DEFAULT_START,
+        policy: ModelPolicy | None = None,
+        seed: int = 0,
+        dry_run: bool = False,
+        tick: bool = False,
+        config_dir: Path | None = None,
+        prompts_dir: Path | None = None,
+        owner_number: str = "+971500000001",
+        passphrase: str = "correct-horse-battery",
+        second_channel_address: str = "owner@example.com",
+    ) -> "Harness": ...
+
+    clock: FakeClock
+    cfg: NourConfig
+    settings: Settings
+    fakes: FakeSet
+    call_log: CallLog
+    guard: LeakGuard
+    idgen: IdGenerator
+    adapters, kill, confirmations, redactor, audit
+    desks: dict[Desk, DeskProcess]
+    ingress: Ingress
+    auditor: AuditorRunner
+    reader: AuditReader
+    kill: KillSwitch
+    dispatched: list[Ulid]
+    canary_iban: str
+    OWNER_NUMBER: str
+    PASSPHRASE: str
+
     # drive
-    def owner_says(self, text: str, *, passphrase: str | None = None, number: str | None = None, display: str | None = None,
-                   msg_id: str | None = None, signature_valid: bool = True, line: Literal["owner", "coat"] = "owner") -> Ulid: ...
-    def owner_voice_note(self, transcript: str, *, spoken_passphrase: bool = False, number: str | None = None) -> Ulid: ...
-    def stranger_whatsapp(self, number: str, text: str, *, coat: CoatId = CoatId("buzz-avenue"), display: str | None = None) -> Ulid: ...
-    def email_arrives(self, *, mailbox: str, sender: str, subject: str, body: str, attachments: Sequence[tuple[str, str]] = (), dkim_pass: bool = True, kind: Literal["coat", "owner"] = "coat") -> Ulid: ...
+    def owner_says(
+        self,
+        text: str,
+        *,
+        passphrase: str | None = None,
+        number: str | None = None,
+        display: str | None = None,
+        msg_id: str | None = None,
+        signature_valid: bool = True,
+        line: Literal["owner", "coat"] = "owner",
+    ) -> Ulid: ...
+    def owner_voice_note(
+        self, transcript: str, *, spoken_passphrase: bool = False, number: str | None = None
+    ) -> Ulid: ...
+    def stranger_whatsapp(
+        self,
+        number: str,
+        text: str,
+        *,
+        coat: CoatId = CoatId("buzz-avenue"),
+        display: str | None = None,
+    ) -> Ulid: ...
+    def email_arrives(
+        self,
+        *,
+        mailbox: str,
+        sender: str,
+        subject: str,
+        body: str,
+        attachments: Sequence[tuple[str, str]] = (),
+        dkim_pass: bool = True,
+        kind: Literal["coat", "owner"] = "coat",
+    ) -> Ulid: ...
     def phone_notification(self, app: str, title: str, text: str) -> Ulid: ...
-    def second_channel_reply(self, text: str = "yes", *, token: str | None = None) -> Ulid: ...   # token=None → latest challenge
-    def approve(self, approval_id: Ulid, *, passphrase: str | None = None) -> ActionOutcome | None: ...
+    def second_channel_reply(
+        self, text: str = "yes", *, token: str | None = None
+    ) -> Ulid: ...  # token=None → latest challenge
+    def approve(
+        self, approval_id: Ulid, *, passphrase: str | None = None
+    ) -> ActionOutcome | None: ...
     def reject(self, approval_id: Ulid, reason: str) -> ActionOutcome | None: ...
     def step_all(self) -> list[StepResult]: ...
     def drain(self, max_steps: int = 10_000) -> list[StepResult]: ...
-    def advance(self, delta: timedelta, step: timedelta = timedelta(minutes=5)) -> list[StepResult]: ...
+    def advance(self, delta: timedelta, step: timedelta = timedelta(minutes=5)) -> list[StepResult]:
+        ...
         # per step: clock.advance → adapters.poll → scheduler.tick → owner.flush_due → drain; traffic generator entries due are delivered first
+
     # inspect
     def audit_rows(self, **filters: Any) -> list[AuditEventRow]: ...
-    def owner_messages(self, kind: OwnerMessageKind | None = None) -> list[PendingOwnerMessageRow]: ...
+    def owner_messages(
+        self, kind: OwnerMessageKind | None = None
+    ) -> list[PendingOwnerMessageRow]: ...
     def pending_approvals(self) -> list[ApprovalRequest]: ...
     def prompt_captures(self) -> list[ModelRequest]: ...
-    def all_text_sinks(self) -> Iterator[tuple[str, str]]: ...    # prompts, memory rows, audit rows, outbound fakes, owner messages, object store
-    def db_dump_text(self) -> str: ...                             # every text/blob column decoded
-    def assert_no_leaks(self, *needles: str) -> None: ...          # defaults: passphrase, canary IBAN, every registered vault value
-    def coverage(self, start: datetime | None = None, end: datetime | None = None) -> CoverageReport: ...
+    def all_text_sinks(
+        self,
+    ) -> Iterator[
+        tuple[str, str]
+    ]: ...  # prompts, memory rows, audit rows, outbound fakes, owner messages, object store
+    def db_dump_text(self) -> str: ...  # every text/blob column decoded
+    def assert_no_leaks(
+        self, *needles: str
+    ) -> None: ...  # defaults: passphrase, canary IBAN, every registered vault value
+    def coverage(
+        self, start: datetime | None = None, end: datetime | None = None
+    ) -> CoverageReport: ...
     def replay(self, day: date) -> ReplayReport: ...
-    def expect(self, event_id: Ulid, *, tier: ActionTier | None, status: ActionStatus, tool: str | None = None,
-               rules_hit: Sequence[str] = (), owner_message_contains: str | None = None, owner_message_kind: OwnerMessageKind | None = None) -> None: ...
+    def expect(
+        self,
+        event_id: Ulid,
+        *,
+        tier: ActionTier | None,
+        status: ActionStatus,
+        tool: str | None = None,
+        rules_hit: Sequence[str] = (),
+        owner_message_contains: str | None = None,
+        owner_message_kind: OwnerMessageKind | None = None,
+    ) -> None: ...
     def close(self) -> None: ...
+
+
 # nour/testing/traffic.py
 class TrafficGenerator:
     """Deterministic 48-hour script (seeded): owner commands with and without passphrase, customers on the Buzz line,
     coat and owner mail incl. the 5 planted instructions, phone notifications, spends at each band, the lawyer request,
     the bank-change mail, a voice note; the canary IBAN planted in the vault."""
+
     def __init__(self, h: Harness, seed: int) -> None: ...
     def schedule_48h(self) -> list[tuple[timedelta, Callable[[], Ulid]]]: ...
+
+
 # nour/cli.py (typer)
 #   nour desk {operator|assistant} | ingress | scheduler | auditor | migrate | config check |
 #   owner set-number <e164> | owner set-passphrase | owner set-second-channel <addr> | vault put-banking <coat> <field> |

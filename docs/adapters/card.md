@@ -187,33 +187,41 @@ from enum import StrEnum
 from typing import Literal, Mapping, Protocol, Sequence
 from pydantic import BaseModel
 
-class DeclineReason(StrEnum):
-    LIMIT = "limit"; FROZEN = "frozen"; MCC_BLOCKED = "mcc_blocked"
-    FUNDS = "funds"; WEBHOOK = "webhook"; OTHER = "other"
 
-class CardRef(BaseModel):            # never carries a PAN, CVC or expiry
-    provider: str                     # "stripe" | "airwallex" | "nymcard" | "fake"
-    card_id: str                      # provider id
-    budget_holder: str                # "operator" | "assistant_logistics" | "operator.ai_models"
+class DeclineReason(StrEnum):
+    LIMIT = "limit"
+    FROZEN = "frozen"
+    MCC_BLOCKED = "mcc_blocked"
+    FUNDS = "funds"
+    WEBHOOK = "webhook"
+    OTHER = "other"
+
+
+class CardRef(BaseModel):  # never carries a PAN, CVC or expiry
+    provider: str  # "stripe" | "airwallex" | "nymcard" | "fake"
+    card_id: str  # provider id
+    budget_holder: str  # "operator" | "assistant_logistics" | "operator.ai_models"
     last4: str
-    currency: str                     # ISO 4217, e.g. "AED"
+    currency: str  # ISO 4217, e.g. "AED"
     monthly_cap: Decimal
     frozen: bool
     blocked_mcc: frozenset[str]
 
+
 class CardTransaction(BaseModel):
-    provider_id: str                  # capture/refund id
-    authorization_id: str | None      # None for unlinked refunds / force captures
+    provider_id: str  # capture/refund id
+    authorization_id: str | None  # None for unlinked refunds / force captures
     card_id: str
     kind: Literal["authorization", "capture", "refund", "reversal", "decline"]
-    amount: Decimal                   # card currency, signed (refund positive)
+    amount: Decimal  # card currency, signed (refund positive)
     merchant_amount: Decimal
     merchant_currency: str
     merchant_name: str
     mcc: str
     occurred_at: datetime
     decline_reason: DeclineReason | None = None
-    raw_ref: str                      # hash or id of the raw payload kept in object storage
+    raw_ref: str  # hash or id of the raw payload kept in object storage
+
 
 class AuthorizationEvent(BaseModel):  # parsed from the real-time webhook
     provider_event_id: str
@@ -227,15 +235,21 @@ class AuthorizationEvent(BaseModel):  # parsed from the real-time webhook
     is_incremental: bool
     received_at: datetime
 
+
 class CardIssuerPort(Protocol):
-    def issue_card(self, budget_holder: str, monthly_cap: Decimal, currency: str,
-                   blocked_mcc: Sequence[str]) -> CardRef: ...
+    def issue_card(
+        self, budget_holder: str, monthly_cap: Decimal, currency: str, blocked_mcc: Sequence[str]
+    ) -> CardRef: ...
     def set_cap(self, card: CardRef, monthly_cap: Decimal) -> CardRef: ...
     def freeze(self, card: CardRef, reason: str) -> CardRef: ...
     def unfreeze(self, card: CardRef, approval_id: str) -> CardRef: ...
     def list_transactions(self, card: CardRef, since: datetime) -> list[CardTransaction]: ...
-    def parse_authorization_webhook(self, headers: Mapping[str, str], body: bytes) -> AuthorizationEvent: ...
-    def authorization_response(self, approved: bool, reason: DeclineReason | None) -> tuple[int, dict]: ...
+    def parse_authorization_webhook(
+        self, headers: Mapping[str, str], body: bytes
+    ) -> AuthorizationEvent: ...
+    def authorization_response(
+        self, approved: bool, reason: DeclineReason | None
+    ) -> tuple[int, dict]: ...
 ```
 
 Contract notes: every method is idempotent on retry; `freeze` must succeed even when the provider is degraded
