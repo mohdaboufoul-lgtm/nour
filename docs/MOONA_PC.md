@@ -64,6 +64,16 @@ In another terminal in the same folder (use `python` or the launcher's
     python moona.py refuse 2 --note "could not"
     python moona.py paid 40 --note "client X"     # a bank transfer landed
     python moona.py ledger | journal | inbox | mail | links | payments
+    python moona.py tell "focus on translation gigs"   # you contact her; she reads it next session
+    python moona.py report               # a digest of her state and last 24h
+    python moona.py report --email       # the same, emailed to MOONA_OWNER_EMAIL
+
+She reports to you herself: her prompt asks her for a short daily report with
+`message_owner`, which lands in her inbox and, when you set `MOONA_OWNER_EMAIL` and
+her mailbox, is emailed to you. To guarantee a daily report regardless of her, schedule
+`moona.py report --email`: on Windows with Task Scheduler (a daily trigger running
+`powershell -File ...\.moona-venv\Scripts\python.exe moona.py report --email`), on
+macOS or Linux with cron (`0 18 * * * cd /path/to/nour && .moona-venv/bin/python moona.py report --email`).
 
 Payments through her Stripe links book themselves. Only bank transfers need your
 `paid` command. The decisions that need your hands (paying for things, posting or

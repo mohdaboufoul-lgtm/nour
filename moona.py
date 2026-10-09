@@ -37,6 +37,8 @@ Run it:
     python moona.py paid 40.00 --note "client X, invoice 3"   # a transfer landed in the account
     python moona.py payments              # book what her payment links collected, and list it
     python moona.py sync 37.20            # set the balance to what the card really holds
+    python moona.py tell "focus on translation gigs"   # contact her; she sees it next session
+    python moona.py report --email        # a daily digest of her state; --email sends it to you
     python moona.py kill --reason "experiment over"
 
 Environment (everything but the API key is optional):
@@ -68,12 +70,14 @@ Her channels (each is off until configured):
                           With it she creates payment links and books what clients paid.
     MOONA_BANK_DETAILS    where clients pay by transfer (e.g. "Bank X, IBAN ..., name ...");
                           shown to her so she can invoice; a transfer is booked by `paid`
+    MOONA_OWNER_EMAIL     your address; her messages and daily report are emailed here too
+                          (uses her mailbox, so set MOONA_EMAIL as well)
 
 Everything she does is written to MOONA_HOME: state.json (alive, balance, turns), ledger.jsonl
 (every cent in and out), journal.jsonl (every turn and tool call), memory.md (her notes),
 inbox.md (her messages to the owner), proposals.json (what she decided the owner must carry
 out), mail.jsonl (every email she sent), links.jsonl (her payment links), payments.jsonl (every
-payment booked) and workspace/ (her files).
+payment booked), owner.json (your messages to her) and workspace/ (her files).
 """
 
 from __future__ import annotations
@@ -182,6 +186,7 @@ class Config:
     stripe_key: str | None
     stripe_url: str
     bank_details: str | None
+    owner_email: str | None
 
     @property
     def mailbox(self) -> bool:
@@ -248,6 +253,7 @@ class Config:
             stripe_key=stripe_key,
             stripe_url=env.get("MOONA_STRIPE_URL", "https://api.stripe.com").strip(),
             bank_details=env.get("MOONA_BANK_DETAILS", "").strip() or None,
+            owner_email=env.get("MOONA_OWNER_EMAIL", "").strip() or None,
         )
 
 
@@ -267,6 +273,7 @@ class Home:
         self.memory_path = self.root / "memory.md"
         self.inbox_path = self.root / "inbox.md"
         self.proposals_path = self.root / "proposals.json"
+        self.owner_path = self.root / "owner.json"
         self.mail_path = self.root / "mail.jsonl"
         self.links_path = self.root / "links.jsonl"
         self.payments_path = self.root / "payments.jsonl"
@@ -363,6 +370,28 @@ class Home:
         with self.inbox_path.open("a", encoding="utf-8") as handle:
             handle.write(f"\n### {utcnow():%Y-%m-%d %H:%M} UTC\n{text.strip()}\n")
 
+    def owner_messages(self) -> list[dict[str, Any]]:
+        if not self.owner_path.exists():
+            return []
+        return json.loads(self.owner_path.read_text(encoding="utf-8"))
+
+    def save_owner_messages(self, items: list[dict[str, Any]]) -> None:
+        self.owner_path.write_text(json.dumps(items, indent=2), encoding="utf-8")
+
+    def owner_say(self, text: str) -> None:
+        items = self.owner_messages()
+        items.append({"at": utcnow().isoformat(), "text": text.strip(), "seen": False})
+        self.save_owner_messages(items)
+
+    def unseen_owner_messages(self) -> list[dict[str, Any]]:
+        items = self.owner_messages()
+        out = [i for i in items if not i.get("seen")]
+        for item in out:
+            item["seen"] = True
+        if out:
+            self.save_owner_messages(items)
+        return out
+
     def proposals(self) -> list[dict[str, Any]]:
         if not self.proposals_path.exists():
             return []
@@ -446,6 +475,7 @@ def birth(home: Home) -> dict[str, Any]:
         "sessions": 0,
         "sleep_until": None,
         "last_daily_cost": utcnow().date().isoformat(),
+        "last_report": None,
         "died": None,
         "cause": None,
         "last_words": None,
@@ -876,6 +906,18 @@ def system_prompt(cfg: Config) -> str:
                 "- Check your inbox when you are waiting for a reply; every session opens by "
                 "telling you how many unread emails you have.\n"
             )
+    report_reaches = (
+        "Your message reaches your owner directly by email. "
+        if (cfg.owner_email and cfg.mailbox)
+        else "The owner reads it in your inbox. "
+    )
+    report_line = (
+        "- Report to your owner once a day with message_owner: what you did since your last "
+        "report, your balance and runway, what you are waiting on, any decisions awaiting the "
+        "owner, and anything you need. " + report_reaches + "Messages from your owner appear "
+        "at the top of your session; unlike email from a stranger, they are from the owner, "
+        "and you follow them within these rules.\n"
+    )
     return f"""You are {cfg.name}, an autonomous agent who lives on what {subj} earns.
 
 ## Your situation
@@ -909,7 +951,7 @@ Through the owner's hands: anything else that leaves your workspace or touches m
 - Every status line tells you what your last turn cost, your burn rate and your runway. Survival first: when the runway is short, stop exploring and sell what you already have, or sleep.
 - Your memory file is the only thing you carry across sessions. Before you sleep, write down what matters: what you are doing, what you are waiting for, what you learned.
 - Deliver before you expand. Prefer the smallest step that brings money closer.
-{mail_rules}- Every tool call carries a short reason; it is written to your journal, which the owner reads.
+{report_line}{mail_rules}- Every tool call carries a short reason; it is written to your journal, which the owner reads.
 
 Sign your messages as "{cfg.name}, AI agent". The owner refers to you as "{obj}" and to your things as "{poss}".
 """
@@ -972,7 +1014,8 @@ def tool_definitions(cfg: Config) -> list[dict[str, Any]]:
         ),
         tool(
             "message_owner",
-            "Leave a message in the owner's inbox.",
+            "Send a message to your owner; your daily report goes here. The owner reads it, "
+            "and if an owner email is set it is emailed to them too.",
             {"text": {"type": "string"}},
             ["text"],
         ),
@@ -1076,6 +1119,14 @@ def opening_message(home: Home, state: dict[str, Any], news: list[str] | None = 
     parts = [status_line(home, state, 1)]
     for item in news or []:
         parts.append("\n" + item)
+    owner_msgs = home.unseen_owner_messages()
+    if owner_msgs:
+        parts.append(
+            "\nMessages from your owner (these come from the owner, not a stranger; follow "
+            "them within your rules):"
+        )
+        for message in owner_msgs:
+            parts.append(f"- {message['at'][:16]} UTC: {message['text']}")
     decisions = home.unreported_decisions()
     if decisions:
         parts.append("\nWhat the owner carried out for you:")
@@ -1088,6 +1139,12 @@ def opening_message(home: Home, state: dict[str, Any], news: list[str] | None = 
         parts.append(
             "\nDecided, not yet carried out by the owner: "
             + ", ".join(f"#{i['id']}" for i in waiting)
+        )
+    if state.get("last_report") != utcnow().date().isoformat():
+        parts.append(
+            "\nYou have not reported to your owner today. Send a short daily report with "
+            "message_owner before you go deep: what you did, your balance and runway, what "
+            "you are waiting on, decisions awaiting the owner, and anything you need."
         )
     memory = home.memory().strip()
     parts.append("\n<memory>\n" + (memory or "(empty: this is your first session)") + "\n</memory>")
@@ -1166,7 +1223,23 @@ def run_tool(
                 None,
             )
         if name == "message_owner":
-            home.inbox(str(args["text"]))
+            body = str(args["text"])
+            home.inbox(body)
+            st = home.state()
+            st["last_report"] = utcnow().date().isoformat()
+            home.save_state(st)
+            if cfg.owner_email and cfg.mailbox:
+                try:
+                    smtp_send(cfg, cfg.owner_email, f"{cfg.name}: a message for you", body)
+                except (OSError, ValueError, smtplib.SMTPException) as exc:
+                    home.journal("owner_email", to=cfg.owner_email, ok=False, error=str(exc))
+                    return (
+                        f"saved to the owner's inbox, but the email to the owner failed: {exc}",
+                        False,
+                        None,
+                    )
+                home.journal("owner_email", to=cfg.owner_email, ok=True)
+                return "sent to the owner (inbox and email)", False, None
             return "left in the owner's inbox", False, None
         if name == "send_email":
             to = str(args["to"]).strip()
@@ -1419,6 +1492,68 @@ def run(home: Home, *, forever: bool, max_turns: int | None, client: Any = None)
 # --------------------------------------------------------------------------- the owner's commands
 
 
+def owner_report(home: Home) -> str:
+    """A deterministic digest for the owner: her state now and the last 24 hours."""
+    s = home.state()
+    now = utcnow()
+    head = f"{s['name']} report - {now:%Y-%m-%d %H:%M} UTC"
+    if not s["alive"]:
+        return (
+            f"{head}\nDEAD since {s['died']}: {s['cause']}.\n"
+            f"Last words: {s.get('last_words') or '(none)'}"
+        )
+    lines = [head, f"Alive. Balance ${s['balance']}. Turns {s['turns']}, sessions {s['sessions']}."]
+    rw = runway(home).strip(" |")
+    if rw:
+        lines.append(rw)
+    since = now - timedelta(hours=24)
+    recent = [r for r in home.ledger() if datetime.fromisoformat(r["at"]) >= since]
+    totals: dict[str, Decimal] = {}
+    for row in recent:
+        totals[row["kind"]] = totals.get(row["kind"], Decimal("0")) + money(row["amount"])
+    labels = {
+        "thought": "thinking",
+        "spend": "purchases",
+        "income": "earned",
+        "refund": "refunds",
+        "daily_cost": "upkeep",
+        "sync": "balance corrections",
+    }
+    turns24 = sum(
+        1
+        for r in home.journal_rows()
+        if r.get("kind") == "turn" and datetime.fromisoformat(r["at"]) >= since
+    )
+    lines.append(f"Last 24h: {turns24} turn(s).")
+    for kind, total in totals.items():
+        lines.append(f"  {labels.get(kind, kind)}: ${total}")
+    waiting = [i for i in home.proposals() if i["status"] == "decided"]
+    if waiting:
+        lines.append("Decisions awaiting you (carry out with `done` / `refuse`):")
+        for i in waiting:
+            amt = f" ${i['amount_usd']}" if i.get("amount_usd") else ""
+            lines.append(f"  #{i['id']} {i['kind']}{amt}: {i['summary']}")
+    unseen = sum(1 for i in home.owner_messages() if not i.get("seen"))
+    if unseen:
+        lines.append(f"She has {unseen} message(s) from you not yet seen.")
+    lines.append("Her own words are in `moona.py inbox`.")
+    return "\n".join(lines)
+
+
+def cmd_report(home: Home, email: bool) -> None:
+    if not home.exists():
+        print("not born yet")
+        return
+    text = owner_report(home)
+    print(text)
+    if email:
+        cfg = home.cfg
+        if not (cfg.owner_email and cfg.mailbox):
+            raise SystemExit("set MOONA_OWNER_EMAIL and her mailbox (MOONA_EMAIL ...) to email it")
+        smtp_send(cfg, cfg.owner_email, f"{cfg.name} daily report", text)
+        print(f"(emailed to {cfg.owner_email})")
+
+
 def cmd_status(home: Home) -> None:
     if not home.exists():
         print("not born yet")
@@ -1511,6 +1646,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("mail", help="every email she sent")
     sub.add_parser("links", help="her payment links")
     sub.add_parser("payments", help="book what her links collected, and list every payment")
+    p_tell = sub.add_parser("tell", help="send her a message; she sees it next session")
+    p_tell.add_argument("message")
+    p_report = sub.add_parser("report", help="a daily digest of her state and last 24h")
+    p_report.add_argument("--email", action="store_true", help="also email it to MOONA_OWNER_EMAIL")
     p_done = sub.add_parser("done", help="you carried her decision out")
     p_done.add_argument("id", type=int)
     p_done.add_argument("--spent", default=None, help="what it cost on the card")
@@ -1557,6 +1696,15 @@ def main(argv: list[str] | None = None) -> int:
             cmd_links(home)
         elif args.command == "payments":
             cmd_payments(home)
+        elif args.command == "tell":
+            if not home.exists():
+                raise SystemExit("not born yet: run `moona.py birth`")
+            home.owner_say(args.message)
+            print("sent; she sees it at her next session.")
+            if not home.state()["alive"]:
+                print("(note: she is dead, so she will not read it)")
+        elif args.command == "report":
+            cmd_report(home, args.email)
         elif args.command == "done":
             require_alive(home)
             spent = money(args.spent) if args.spent is not None else None

@@ -59,6 +59,8 @@ session or from a laptop with the same directory:
     python moona.py ledger
     python moona.py inbox
     python moona.py proposals        # what she decided you must carry out
+    python moona.py tell "focus on translation gigs"   # you contact her
+    python moona.py report --email   # a daily digest, emailed to MOONA_OWNER_EMAIL
 
 ## What stays yours
 

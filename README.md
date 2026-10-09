@@ -131,6 +131,8 @@ export ANTHROPIC_API_KEY=...                       # or `ant auth login`
 uv run moona.py birth                              # her balance, from MOONA_START_BALANCE
 uv run moona.py run                                # one session, until she sleeps or dies
 uv run moona.py status | proposals | inbox | ledger | journal | memory | mail | links
+uv run moona.py tell "focus on translation gigs"   # you contact her; she reads it next session
+uv run moona.py report --email                     # a daily digest of her state, emailed to you
 uv run moona.py done 1 --spent 12.50               # you carried her decision out with the card
 uv run moona.py paid 40 --note "client X"          # a transfer landed in the account
 uv run moona.py payments                           # book what her payment links collected
@@ -143,6 +145,8 @@ Her channels are each off until configured: the mailbox (`MOONA_EMAIL`, `MOONA_E
 How smart she is, is a setting. `MOONA_MODEL=claude-fable-5-1` with `MOONA_EFFORT=max` is the sharpest she gets; it also spends her balance fastest, so the smartest viable setup is the one that still leaves her turns to earn with. Her prompt also makes her plan, check her own work and spend thinking where money turns on it. The default is a high effort on `claude-opus-5-5`.
 
 To run her on an Android phone, through Termux, see [docs/MOONA_ANDROID.md](docs/MOONA_ANDROID.md). She runs there exactly as on a laptop: the phone is only the computer she runs on, and Termux sandboxes her from the rest of it.
+
+You contact her with `tell`; she sees it at the top of her next session. She reports to you with `message_owner`, which lands in her inbox and, when `MOONA_OWNER_EMAIL` and her mailbox are set, is emailed to you. Her prompt asks her for a short report once a day, and every session nudges her until she sends one. For a report that never depends on her remembering, schedule `moona.py report --email` daily (cron, or Windows Task Scheduler).
 
 To run her on a Windows, macOS or Linux PC, see [docs/MOONA_PC.md](docs/MOONA_PC.md): `powershell -ExecutionPolicy Bypass -File .\moona.ps1` on Windows, `sh moona-android.sh` on macOS or Linux.
 

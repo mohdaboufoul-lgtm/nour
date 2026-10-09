@@ -593,6 +593,60 @@ def test_a_death_before_the_session_is_handled(tmp_path: Path) -> None:
     assert not home.state()["alive"] and client.requests == []
 
 
+def test_owner_contact_and_daily_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = moona.Config.from_env(env_for(tmp_path, **MAILBOX, MOONA_OWNER_EMAIL="you@example.com"))
+    home = moona.Home(cfg)
+    moona.birth(home)
+    sent: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(
+        moona, "smtp_send", lambda cfg, to, subject, body: sent.append((to, subject, body))
+    )
+    # the owner contacts her; she sees it at the top of her next session, once
+    home.owner_say("focus on translation gigs")
+    opening = moona.opening_message(home, home.state())
+    assert "Messages from your owner" in opening and "focus on translation gigs" in opening
+    assert "not reported to your owner today" in opening  # the daily nudge
+    assert "focus on translation gigs" not in moona.opening_message(home, home.state())
+    # she reports: it lands in the inbox and is emailed to the owner, and marks the day reported
+    state = home.state()
+    text_out, is_error, _ = moona.run_tool(
+        home,
+        "message_owner",
+        {"reason": "r", "text": "Day 1: wrote an offer. Balance $49. Waiting on a reply."},
+        state,
+    )
+    assert not is_error and text_out == "sent to the owner (inbox and email)"
+    assert sent[0][0] == "you@example.com" and "Day 1" in sent[0][2]
+    assert "Day 1" in (home.root / "inbox.md").read_text(encoding="utf-8")
+    assert home.sent_mail() == []  # a message to the owner is not client mail, not rate-limited
+    assert home.state()["last_report"] == moona.utcnow().date().isoformat()
+    assert "not reported to your owner today" not in moona.opening_message(home, home.state())
+    # the owner's `tell` command queues a message for her
+    monkeypatch.setenv("MOONA_HOME", str(home.root))
+    monkeypatch.setenv("MOONA_MODEL", "claude-opus-5-5")
+    assert moona.main(["tell", "sell the e-book too"]) == 0
+    assert any(m["text"] == "sell the e-book too" for m in home.owner_messages())
+
+
+def test_the_report_digest_reads_her_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = moona.Config.from_env(env_for(tmp_path))
+    home = moona.Home(cfg)
+    moona.birth(home)
+    home.book("income", Decimal("40"), "client X")
+    home.propose("pay", "Buy a domain", "namecheap, 1 year", Decimal("12.50"))
+    report = moona.owner_report(home)
+    assert "Alive. Balance $90.00" in report
+    assert "earned: $40.00" in report
+    assert "#1 pay $12.50: Buy a domain" in report
+    monkeypatch.setenv("MOONA_HOME", str(home.root))
+    monkeypatch.setenv("MOONA_MODEL", "claude-opus-5-5")
+    assert moona.main(["report"]) == 0
+    with pytest.raises(SystemExit, match="MOONA_OWNER_EMAIL"):
+        moona.main(["report", "--email"])  # no mailbox configured
+    moona.main(["kill", "--reason", "experiment over"])
+    assert "DEAD" in moona.owner_report(home)
+
+
 def test_tools_stay_inside_her_home(home: Any) -> None:
     state = home.state()
     text_out, is_error, _ = moona.run_tool(
@@ -677,6 +731,7 @@ def test_the_prompt_states_the_contract(tmp_path: Path) -> None:
         "[BANK DETAILS]",
         "nobody approves it",
         "the card holds nothing more",
+        "Report to your owner once a day",
         "How to think",
         "make a short plan",
         "sleep, which is free",
