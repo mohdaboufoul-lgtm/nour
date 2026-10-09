@@ -294,82 +294,189 @@ from datetime import datetime
 from enum import Enum
 from typing import AsyncIterator, Protocol, Sequence
 
-class Scope(str, Enum): READ = "read"; DRAFT = "draft"; SEND = "send"   # the only scopes a port may hold
-class SendIdentity(str, Enum): ASSISTANT = "assistant"; OWNER_ON_BEHALF = "owner_on_behalf"; OWNER_MAILBOX = "owner_mailbox"
-class Verdict(str, Enum): PASS = "pass"; FAIL = "fail"; NONE = "none"; TEMPERROR = "temperror"; PERMERROR = "permerror"; UNKNOWN = "unknown"
+
+class Scope(str, Enum):
+    READ = "read"
+    DRAFT = "draft"
+    SEND = "send"  # the only scopes a port may hold
+
+
+class SendIdentity(str, Enum):
+    ASSISTANT = "assistant"
+    OWNER_ON_BEHALF = "owner_on_behalf"
+    OWNER_MAILBOX = "owner_mailbox"
+
+
+class Verdict(str, Enum):
+    PASS = "pass"
+    FAIL = "fail"
+    NONE = "none"
+    TEMPERROR = "temperror"
+    PERMERROR = "permerror"
+    UNKNOWN = "unknown"
+
 
 @dataclass(frozen=True)
-class Address: email: str; display_name: str = ""
+class Address:
+    email: str
+    display_name: str = ""
+
 
 @dataclass(frozen=True)
 class AuthResult:
-    authserv_id: str; spf: Verdict; dkim: Verdict; dmarc: Verdict
-    spf_domain: str = ""; dkim_domain: str = ""; dmarc_policy_action: str = ""; compauth: str = ""; raw: str = ""
+    authserv_id: str
+    spf: Verdict
+    dkim: Verdict
+    dmarc: Verdict
+    spf_domain: str = ""
+    dkim_domain: str = ""
+    dmarc_policy_action: str = ""
+    compauth: str = ""
+    raw: str = ""
+
 
 @dataclass(frozen=True)
 class AttachmentMeta:
-    attachment_id: str; filename: str; content_type: str; size: int
-    is_inline: bool = False; content_id: str = ""; vault_ref: str | None = None; sha256: str | None = None
+    attachment_id: str
+    filename: str
+    content_type: str
+    size: int
+    is_inline: bool = False
+    content_id: str = ""
+    vault_ref: str | None = None
+    sha256: str | None = None
+
 
 @dataclass(frozen=True)
 class InboundEmail:
-    provider: str; mailbox_id: str; desk: str; coat_id: str | None          # provider: "gmail" | "graph"
-    message_id: str; provider_message_id: str; thread_id: str; provider_thread_id: str   # message_id = RFC 5322 Message-ID
-    in_reply_to: str | None; references: tuple[str, ...]; folder: str; size_estimate: int
-    from_: Address; reply_to: tuple[Address, ...]; return_path: str | None
-    to: tuple[Address, ...]; cc: tuple[Address, ...]; subject: str; date: datetime | None; received_at: datetime
-    body_text: str; body_html_ref: str | None; snippet: str; attachments: tuple[AttachmentMeta, ...]
-    auth: AuthResult | None; list_unsubscribe: str | None; list_unsubscribe_post: str | None; list_id: str | None
-    is_bulk_candidate: bool; spoof_flags: frozenset[str]; raw_headers: tuple[tuple[str, str], ...]
+    provider: str
+    mailbox_id: str
+    desk: str
+    coat_id: str | None  # provider: "gmail" | "graph"
+    message_id: str
+    provider_message_id: str
+    thread_id: str
+    provider_thread_id: str  # message_id = RFC 5322 Message-ID
+    in_reply_to: str | None
+    references: tuple[str, ...]
+    folder: str
+    size_estimate: int
+    from_: Address
+    reply_to: tuple[Address, ...]
+    return_path: str | None
+    to: tuple[Address, ...]
+    cc: tuple[Address, ...]
+    subject: str
+    date: datetime | None
+    received_at: datetime
+    body_text: str
+    body_html_ref: str | None
+    snippet: str
+    attachments: tuple[AttachmentMeta, ...]
+    auth: AuthResult | None
+    list_unsubscribe: str | None
+    list_unsubscribe_post: str | None
+    list_id: str | None
+    is_bulk_candidate: bool
+    spoof_flags: frozenset[str]
+    raw_headers: tuple[tuple[str, str], ...]
+
 
 @dataclass(frozen=True)
 class OutboundDraft:
-    mailbox_id: str; coat_id: str; identity: SendIdentity
-    to: tuple[Address, ...]; cc: tuple[Address, ...] = (); bcc: tuple[Address, ...] = ()
-    subject: str = ""; body_text: str = ""; body_html: str | None = None
-    reply_to_message_id: str | None = None; thread_id: str | None = None
-    attachments: tuple[str, ...] = ()        # vault refs; the adapter fetches bytes, the model never does
-    unsubscribe_token: str | None = None     # set => adapter emits the RFC 8058 headers
+    mailbox_id: str
+    coat_id: str
+    identity: SendIdentity
+    to: tuple[Address, ...]
+    cc: tuple[Address, ...] = ()
+    bcc: tuple[Address, ...] = ()
+    subject: str = ""
+    body_text: str = ""
+    body_html: str | None = None
+    reply_to_message_id: str | None = None
+    thread_id: str | None = None
+    attachments: tuple[str, ...] = ()  # vault refs; the adapter fetches bytes, the model never does
+    unsubscribe_token: str | None = None  # set => adapter emits the RFC 8058 headers
     extra_headers: tuple[tuple[str, str], ...] = ()
-    approval_id: str | None = None           # required for OWNER_* identities (tier K)
+    approval_id: str | None = None  # required for OWNER_* identities (tier K)
+
 
 @dataclass(frozen=True)
-class DraftRef: mailbox_id: str; provider_draft_id: str; provider_message_id: str; thread_id: str
+class DraftRef:
+    mailbox_id: str
+    provider_draft_id: str
+    provider_message_id: str
+    thread_id: str
+
+
 @dataclass(frozen=True)
-class SendReceipt: mailbox_id: str; message_id: str; provider_message_id: str; thread_id: str; accepted_at: datetime
+class SendReceipt:
+    mailbox_id: str
+    message_id: str
+    provider_message_id: str
+    thread_id: str
+    accepted_at: datetime
+
+
 @dataclass(frozen=True)
-class ChangeEvent: mailbox_id: str; cursor: str; message_ids: tuple[str, ...]; full_resync_required: bool = False
+class ChangeEvent:
+    mailbox_id: str
+    cursor: str
+    message_ids: tuple[str, ...]
+    full_resync_required: bool = False
+
+
 @dataclass(frozen=True)
-class Capabilities: scopes: frozenset[Scope]; identities: frozenset[SendIdentity]; push: bool; daily_send_cap: int | None
+class Capabilities:
+    scopes: frozenset[Scope]
+    identities: frozenset[SendIdentity]
+    push: bool
+    daily_send_cap: int | None
+
 
 class MailboxError(Exception): ...
-class ScopeError(MailboxError): ...          # call outside read/draft/send
+
+
+class ScopeError(MailboxError): ...  # call outside read/draft/send
+
+
 class ReauthRequired(MailboxError): ...
+
+
 class SendFailure(MailboxError):
     def __init__(self, code: str, retry_after_s: int | None = None, permanent: bool = False): ...
 
+
 class OwnerMailboxPort(Protocol):
     """Owner's mailboxes. Assistant desk only. Delegated OAuth, read/draft/send."""
+
     def capabilities(self) -> Capabilities: ...
-    async def ensure_watch(self) -> datetime: ...                      # (re)arm push; returns expiry
+    async def ensure_watch(self) -> datetime: ...  # (re)arm push; returns expiry
     async def handle_push(self, payload: bytes, headers: dict[str, str]) -> ChangeEvent | None: ...
-    async def poll(self, cursor: str | None) -> ChangeEvent: ...        # history.list / delta
+    async def poll(self, cursor: str | None) -> ChangeEvent: ...  # history.list / delta
     async def full_resync(self, since: datetime) -> AsyncIterator[InboundEmail]: ...
     async def get_message(self, provider_message_id: str) -> InboundEmail: ...
     async def get_thread(self, thread_id: str) -> Sequence[InboundEmail]: ...
-    async def fetch_attachment_to_vault(self, provider_message_id: str, attachment_id: str, entity_ref: str) -> AttachmentMeta: ...
+    async def fetch_attachment_to_vault(
+        self, provider_message_id: str, attachment_id: str, entity_ref: str
+    ) -> AttachmentMeta: ...
     async def create_draft(self, draft: OutboundDraft) -> DraftRef: ...
     async def update_draft(self, ref: DraftRef, draft: OutboundDraft) -> DraftRef: ...
     async def send_draft(self, ref: DraftRef, approval_id: str | None) -> SendReceipt: ...
-    async def send(self, draft: OutboundDraft) -> SendReceipt: ...      # tier-A categories only
-    async def revoke(self) -> None: ...                                # kill switch / incident
+    async def send(self, draft: OutboundDraft) -> SendReceipt: ...  # tier-A categories only
+    async def revoke(self) -> None: ...  # kill switch / incident
+
 
 class CoatMailboxPort(OwnerMailboxPort, Protocol):
     """nour@<company-domain>. Both desks; the Operator gets Buzz Avenue only (separate credential set)."""
+
     coat_id: str
+
     async def sends_today(self) -> int: ...
-    async def record_unsubscribe(self, token: str, source: str) -> None: ...   # one-click POST / mailto
-    async def deliverability_signals(self) -> dict[str, float]: ...             # bounce %, 5.7.515 count, ...
+    async def record_unsubscribe(
+        self, token: str, source: str
+    ) -> None: ...  # one-click POST / mailto
+    async def deliverability_signals(self) -> dict[str, float]: ...  # bounce %, 5.7.515 count, ...
 ```
 
 In-memory fakes (`FakeGmailMailbox`, `FakeGraphMailbox`, identical surface) must simulate:

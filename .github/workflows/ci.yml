@@ -141,7 +141,17 @@ jobs:
       - name: Run fixed scenarios (SPEC §13 / §16)
         run: |
           if [ -d tests/scenarios ]; then
+            # Every scenario skips until nour.testing.harness lands (wave 5), and pytest
+            # exits 5 when nothing is collected. That is "nothing to run yet", not a failure.
+            set +e
             uv run pytest -q tests/scenarios
+            code=$?
+            set -e
+            if [ "$code" -eq 5 ]; then
+              echo "::warning::tests/scenarios has no runnable tests yet (all skipped); nothing to run"
+            else
+              exit "$code"
+            fi
           else
             echo "::warning::tests/scenarios does not exist yet; nothing to run"
           fi

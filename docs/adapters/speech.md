@@ -52,12 +52,14 @@ import azure.cognitiveservices.speech as speechsdk
 cfg = speechsdk.SpeechConfig(subscription=key, region="uaenorth")
 cfg.speech_recognition_language = "ar-LB"
 fmt = speechsdk.audio.AudioStreamFormat(
-    compressed_stream_format=speechsdk.AudioStreamContainerFormat.OGG_OPUS)
-stream = speechsdk.audio.PushAudioInputStream(stream_format=fmt)   # needs GStreamer on the host
-reco = speechsdk.SpeechRecognizer(speech_config=cfg,
-                                  audio_config=speechsdk.audio.AudioConfig(stream=stream))
+    compressed_stream_format=speechsdk.AudioStreamContainerFormat.OGG_OPUS
+)
+stream = speechsdk.audio.PushAudioInputStream(stream_format=fmt)  # needs GStreamer on the host
+reco = speechsdk.SpeechRecognizer(
+    speech_config=cfg, audio_config=speechsdk.audio.AudioConfig(stream=stream)
+)
 phrases = speechsdk.PhraseListGrammar.from_recognizer(reco)
-for term in vocabulary:            # company, product, staff, customer and place names
+for term in vocabulary:  # company, product, staff, customer and place names
     phrases.addPhrase(term)
 ```
 
@@ -201,10 +203,10 @@ AudioMime = Literal["audio/ogg; codecs=opus", "audio/wav", "audio/mpeg", "audio/
 class AudioInput:
     data: bytes
     mime_type: AudioMime
-    duration_s: float | None = None          # from the container when known
+    duration_s: float | None = None  # from the container when known
     sample_rate_hz: int | None = None
     channels: int = 1
-    source: str = "whatsapp_voice_note"      # for the audit log reason line
+    source: str = "whatsapp_voice_note"  # for the audit log reason line
     sha256: str = field(default="", compare=False)
 
     def digest(self) -> str:
@@ -213,8 +215,10 @@ class AudioInput:
 
 @dataclass(frozen=True)
 class SttOptions:
-    locale_hints: Sequence[str] = ("ar-LB",)   # engine maps to its own codes; ["ar-LB", "en-US"] enables LID
-    vocabulary: Sequence[str] = ()             # phrase list / adaptation / keyterms / prompt
+    locale_hints: Sequence[str] = (
+        "ar-LB",
+    )  # engine maps to its own codes; ["ar-LB", "en-US"] enables LID
+    vocabulary: Sequence[str] = ()  # phrase list / adaptation / keyterms / prompt
     word_timestamps: bool = False
     diarize: bool = False
     timeout_s: float = 30.0
@@ -225,22 +229,22 @@ class TranscriptWord:
     text: str
     start_s: float | None
     end_s: float | None
-    confidence: float | None                   # None when the engine gives none
+    confidence: float | None  # None when the engine gives none
 
 
 @dataclass(frozen=True)
 class Transcript:
-    text: str                                  # engine display text, untouched
-    normalized_text: str                       # tools/stt_bakeoff.normalize_arabic(text)
-    language: str                              # BCP-47 as reported or as hinted
-    confidence: float | None                   # 0..1 utterance-level; None if the engine has none
-    engine: str                                # "azure" | "google" | "elevenlabs" | "whisper" | "fake"
-    model: str                                 # e.g. "ar-LB/2026-09", "chirp_3", "scribe_v2", "large-v3"
+    text: str  # engine display text, untouched
+    normalized_text: str  # tools/stt_bakeoff.normalize_arabic(text)
+    language: str  # BCP-47 as reported or as hinted
+    confidence: float | None  # 0..1 utterance-level; None if the engine has none
+    engine: str  # "azure" | "google" | "elevenlabs" | "whisper" | "fake"
+    model: str  # e.g. "ar-LB/2026-09", "chirp_3", "scribe_v2", "large-v3"
     duration_s: float | None
     words: tuple[TranscriptWord, ...] = ()
-    alternatives: tuple[str, ...] = ()         # N-best when available
+    alternatives: tuple[str, ...] = ()  # N-best when available
     audio_sha256: str = ""
-    raw: dict | None = None                    # vendor payload for debugging; never logged to the audit log
+    raw: dict | None = None  # vendor payload for debugging; never logged to the audit log
 
     def needs_readback(self, threshold: float = 0.80) -> bool:
         """True when the agent must read back before acting even on a Tier A command."""
@@ -251,21 +255,37 @@ class SpeechError(Exception):
     retryable: bool = False
 
 
-class AudioFormatError(SpeechError): ...          # unsupported container/codec, corrupt file
-class AudioTooLongError(SpeechError): ...         # over the engine or policy limit
-class NoSpeechDetected(SpeechError): ...          # silence, noise only (Azure NoMatch/InitialSilenceTimeout)
-class EngineUnavailable(SpeechError):             # 5xx, network, region outage
+class AudioFormatError(SpeechError): ...  # unsupported container/codec, corrupt file
+
+
+class AudioTooLongError(SpeechError): ...  # over the engine or policy limit
+
+
+class NoSpeechDetected(
+    SpeechError
+): ...  # silence, noise only (Azure NoMatch/InitialSilenceTimeout)
+
+
+class EngineUnavailable(SpeechError):  # 5xx, network, region outage
     retryable = True
-class EngineQuotaExceeded(SpeechError):           # 429, concurrency or spend cap
+
+
+class EngineQuotaExceeded(SpeechError):  # 429, concurrency or spend cap
     retryable = True
+
+
 class EngineTimeout(SpeechError):
     retryable = True
-class VocabularyTooLarge(SpeechError): ...        # over 2,000 phrases (Azure) / 1,000 (Scribe) etc.
-class LockedVoiceMismatch(SpeechError): ...       # TTS request for a voice other than the locked one
+
+
+class VocabularyTooLarge(SpeechError): ...  # over 2,000 phrases (Azure) / 1,000 (Scribe) etc.
+
+
+class LockedVoiceMismatch(SpeechError): ...  # TTS request for a voice other than the locked one
 
 
 class SpeechToTextPort(Protocol):
-    engine_id: str                             # stable id written to the audit log
+    engine_id: str  # stable id written to the audit log
 
     async def transcribe(self, audio: AudioInput, options: SttOptions) -> Transcript: ...
 
@@ -282,10 +302,10 @@ class SpeechToTextPort(Protocol):
 @dataclass(frozen=True)
 class VoiceSpec:
     engine: str
-    voice_id: str                              # "ar-LB-LaylaNeural" or an ElevenLabs voice id
-    model_id: str                              # "neural" / "eleven_v3" ...
+    voice_id: str  # "ar-LB-LaylaNeural" or an ElevenLabs voice id
+    model_id: str  # "neural" / "eleven_v3" ...
     locale: str = "ar-LB"
-    settings: tuple[tuple[str, float], ...] = ()   # sorted (name, value) pairs, hashed into the lock
+    settings: tuple[tuple[str, float], ...] = ()  # sorted (name, value) pairs, hashed into the lock
 
 
 @dataclass(frozen=True)
@@ -293,7 +313,7 @@ class TtsOptions:
     output_mime: AudioMime = "audio/ogg; codecs=opus"
     sample_rate_hz: int = 48000
     speed: float = 1.0
-    max_chars: int = 2000                      # policy cap per voice note
+    max_chars: int = 2000  # policy cap per voice note
     timeout_s: float = 30.0
 
 
@@ -312,7 +332,9 @@ class TextToSpeechPort(Protocol):
     engine_id: str
     locked_voice: VoiceSpec
 
-    async def synthesize(self, text: str, voice: VoiceSpec, options: TtsOptions) -> SynthesizedAudio:
+    async def synthesize(
+        self, text: str, voice: VoiceSpec, options: TtsOptions
+    ) -> SynthesizedAudio:
         """Raises LockedVoiceMismatch if voice != self.locked_voice."""
         ...
 

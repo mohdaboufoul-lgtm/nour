@@ -80,24 +80,31 @@ from datetime import datetime
 
 Desk = Literal["operator", "assistant", "auditor"]
 
-@dataclass(frozen=True)
-class SecretRef:            # e.g. "operator/whatsapp/system_user_token"; refs, never values, appear in logs
-    path: str
 
 @dataclass(frozen=True)
-class Token:                # repr() shows version and expiry only
-    value: str              # never logged, never placed in a prompt
-    expires_at: datetime    # short-lived: minutes to hours, never "forever"
-    version: str            # provider version id; sha256(path + version) goes to the audit log
+class SecretRef:  # e.g. "operator/whatsapp/system_user_token"; refs, never values, appear in logs
+    path: str
+
+
+@dataclass(frozen=True)
+class Token:  # repr() shows version and expiry only
+    value: str  # never logged, never placed in a prompt
+    expires_at: datetime  # short-lived: minutes to hours, never "forever"
+    version: str  # provider version id; sha256(path + version) goes to the audit log
+
 
 class ScopedSecrets(Protocol):
     desk: Desk
-    def get(self, ref: SecretRef) -> Token: ...          # raises Forbidden if ref is outside the desk's prefix
-    def refs(self) -> list[SecretRef]: ...                # metadata only
+
+    def get(
+        self, ref: SecretRef
+    ) -> Token: ...  # raises Forbidden if ref is outside the desk's prefix
+    def refs(self) -> list[SecretRef]: ...  # metadata only
+
 
 class SecretsPort(Protocol):
     def scoped(self, desk: Desk) -> ScopedSecrets: ...
-    def rotate(self, ref: SecretRef, reason: str) -> str: ...        # returns new version
+    def rotate(self, ref: SecretRef, reason: str) -> str: ...  # returns new version
     def revoke_all(self, desk: Desk, reason: str) -> list[str]: ...  # kill switch; returns receipts
 ```
 
@@ -390,11 +397,15 @@ date window -> unmatched items to the morning brief. The model receives matcher 
 
 ```python
 class BankFeedPort(Protocol):
-    def accounts(self, coat_id: str) -> list[AccountRef]: ...                 # last-4 only in briefs
+    def accounts(self, coat_id: str) -> list[AccountRef]: ...  # last-4 only in briefs
     def transactions(self, account: AccountRef, since: date) -> list[BankTxn]: ...
-    def revoke(self, coat_id: str, reason: str) -> list[str]: ...           # called by the kill switch
+    def revoke(self, coat_id: str, reason: str) -> list[str]: ...  # called by the kill switch
+
+
 class StatementImportPort(Protocol):
-    def parse(self, blob: bytes, fmt: Literal["csv", "mt940", "camt053"], coat_id: str) -> list[BankTxn]: ...
+    def parse(
+        self, blob: bytes, fmt: Literal["csv", "mt940", "camt053"], coat_id: str
+    ) -> list[BankTxn]: ...
 ```
 
 ## 7. `ObjectStoragePort` and `BackupPort`
@@ -402,26 +413,51 @@ class StatementImportPort(Protocol):
 ```python
 @dataclass(frozen=True)
 class ObjectRef:
-    key: str; version_id: str; sha256: str; size: int
+    key: str
+    version_id: str
+    sha256: str
+    size: int
+
 
 class ObjectStoragePort(Protocol):
-    def put_new_version(self, key: str, data: bytes, *, metadata: dict[str, str], retain_until: datetime | None) -> ObjectRef: ...
+    def put_new_version(
+        self, key: str, data: bytes, *, metadata: dict[str, str], retain_until: datetime | None
+    ) -> ObjectRef:
+        ...
         # write-once: raises KeyExists if `key` already has any version
-    def get(self, ref: ObjectRef) -> bytes: ...                 # exact version; raises IntegrityError on sha256 mismatch
+
+    def get(
+        self, ref: ObjectRef
+    ) -> bytes: ...  # exact version; raises IntegrityError on sha256 mismatch
     def head(self, key: str) -> ObjectRef | None: ...
     def list_versions(self, key_prefix: str) -> list[ObjectRef]: ...
-    def presign_get(self, ref: ObjectRef, *, ttl: timedelta, share_id: str) -> str: ...  # ttl capped: 7 d; 24 h for tier 2
+    def presign_get(
+        self, ref: ObjectRef, *, ttl: timedelta, share_id: str
+    ) -> str: ...  # ttl capped: 7 d; 24 h for tier 2
     def legal_hold(self, ref: ObjectRef, on: bool) -> None: ...
-    def revoke_links(self, share_id: str | None = None) -> int: ...  # Azure: revoke delegation key; AWS: rotate signer role
+    def revoke_links(
+        self, share_id: str | None = None
+    ) -> int: ...  # Azure: revoke delegation key; AWS: rotate signer role
+
 
 class BackupPort(Protocol):
-    def snapshot(self, scope: Literal["db", "vault", "audit", "all"]) -> RecoveryPoint: ...   # daily job
-    def copy_to_secondary(self, rp: RecoveryPoint) -> RecoveryPoint: ...                       # second location, re-encrypted
+    def snapshot(
+        self, scope: Literal["db", "vault", "audit", "all"]
+    ) -> RecoveryPoint: ...  # daily job
+    def copy_to_secondary(
+        self, rp: RecoveryPoint
+    ) -> RecoveryPoint: ...  # second location, re-encrypted
     def latest(self, location: Literal["primary", "secondary"]) -> RecoveryPoint: ...
-    def restore(self, rp: RecoveryPoint, *, target: str, isolated: bool = True) -> RestoreHandle: ...
-    def verify(self, handle: RestoreHandle, manifest: dict) -> RestoreReport: ...              # the six checks in 4.6
+    def restore(
+        self, rp: RecoveryPoint, *, target: str, isolated: bool = True
+    ) -> RestoreHandle: ...
+    def verify(
+        self, handle: RestoreHandle, manifest: dict
+    ) -> RestoreReport: ...  # the six checks in 4.6
     def destroy(self, handle: RestoreHandle) -> None: ...
-    def export_portable(self, rp: RecoveryPoint, dest: ObjectStoragePort) -> ObjectRef: ...   # pg_dump + encrypted vault tar
+    def export_portable(
+        self, rp: RecoveryPoint, dest: ObjectStoragePort
+    ) -> ObjectRef: ...  # pg_dump + encrypted vault tar
 ```
 
 Fake behaviour for tests (`FakeObjectStorage`, `FakeBackup`, in-memory, injectable clock):

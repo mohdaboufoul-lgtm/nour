@@ -28,44 +28,85 @@ and translate to/from these types (pydantic v2, `nour/ports/model.py`):
 
 ```python
 Role = Literal["brain", "critic", "auditor", "tier2"]
+
+
 class ToolDef(BaseModel):
-    name: str; description: str
-    input_schema: dict            # JSON Schema; additionalProperties=false, every field in `required`
+    name: str
+    description: str
+    input_schema: dict  # JSON Schema; additionalProperties=false, every field in `required`
     strict: bool = True
+
+
 class ToolCall(BaseModel):
-    id: str; name: str; arguments: dict   # arguments already json-parsed; never raw-string matched
-class Block(BaseModel):            # vendor-neutral transcript content
+    id: str
+    name: str
+    arguments: dict  # arguments already json-parsed; never raw-string matched
+
+
+class Block(BaseModel):  # vendor-neutral transcript content
     type: Literal["text", "tool_call", "tool_result", "opaque"]
     text: str | None = None
     tool_call: ToolCall | None = None
-    tool_result: tuple[str, str, bool] | None = None   # (call_id, content, is_error)
-    opaque: dict | None = None     # vendor-bound block (e.g. Claude thinking) — replayed only to the same model
+    tool_result: tuple[str, str, bool] | None = None  # (call_id, content, is_error)
+    opaque: dict | None = (
+        None  # vendor-bound block (e.g. Claude thinking) — replayed only to the same model
+    )
+
+
 class Message(BaseModel):
-    role: Literal["user", "assistant", "system"]; content: list[Block]
+    role: Literal["user", "assistant", "system"]
+    content: list[Block]
+
+
 class ModelRequest(BaseModel):
     role: Role
-    system: list[str]              # ordered stable→volatile; adapters put cache breakpoint after the last stable block
+    system: list[
+        str
+    ]  # ordered stable→volatile; adapters put cache breakpoint after the last stable block
     messages: list[Message]
     tools: list[ToolDef] = []
     max_tokens: int
-    output_schema: dict | None = None       # structured output (critic score, auditor report)
+    output_schema: dict | None = None  # structured output (critic score, auditor report)
     effort: Literal["low", "medium", "high", "xhigh", "max"] = "high"
-    meta: dict = {}                # desk, coat_id, task_id, conversation_id — logged, never sent as prompt text
+    meta: dict = {}  # desk, coat_id, task_id, conversation_id — logged, never sent as prompt text
+
+
 class Usage(BaseModel):
-    input_tokens: int; output_tokens: int
-    cache_read_tokens: int = 0; cache_write_tokens: int = 0; reasoning_tokens: int = 0
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    reasoning_tokens: int = 0
+
+
 class Cost(BaseModel):
-    usd: Decimal; aed: Decimal; fx_rate: Decimal; price_table_version: str
+    usd: Decimal
+    aed: Decimal
+    fx_rate: Decimal
+    price_table_version: str
+
+
 class ModelResponse(BaseModel):
-    text: str; tool_calls: list[ToolCall]
+    text: str
+    tool_calls: list[ToolCall]
     stop_reason: Literal["end_turn", "tool_use", "max_tokens", "refusal", "error"]
-    usage: Usage; cost: Cost
-    vendor: str; model: str; request_id: str | None; latency_ms: int
+    usage: Usage
+    cost: Cost
+    vendor: str
+    model: str
+    request_id: str | None
+    latency_ms: int
     opaque_blocks: list[dict] = []  # returned verbatim by the adapter so the loop can replay them
+
+
 class ModelPort(Protocol):
-    vendor: str; model: str
+    vendor: str
+    model: str
+
     def complete(self, request: ModelRequest) -> ModelResponse: ...
-    def count_tokens(self, request: ModelRequest) -> int: ...   # vendor-accurate, used for budget checks
+    def count_tokens(
+        self, request: ModelRequest
+    ) -> int: ...  # vendor-accurate, used for budget checks
 ```
 
 Rules the loop enforces regardless of adapter:
@@ -124,15 +165,24 @@ asserting at startup with `client.models.retrieve(id)` (returns `max_input_token
 
 ```python
 resp = client.messages.create(
-    model=MODEL, max_tokens=req.max_tokens,
-    system=[*stable_blocks_with_cache_control, *volatile_blocks],           # §2.3
-    tools=[{"name": t.name, "description": t.description,
-            "input_schema": t.input_schema, "strict": True} for t in sorted_by_name(req.tools)],
-    tool_choice={"type": "auto"},                                           # forced choice is a 400 on Fable 5.1
+    model=MODEL,
+    max_tokens=req.max_tokens,
+    system=[*stable_blocks_with_cache_control, *volatile_blocks],  # §2.3
+    tools=[
+        {
+            "name": t.name,
+            "description": t.description,
+            "input_schema": t.input_schema,
+            "strict": True,
+        }
+        for t in sorted_by_name(req.tools)
+    ],
+    tool_choice={"type": "auto"},  # forced choice is a 400 on Fable 5.1
     output_config={"effort": req.effort},
     messages=render(req.messages),
-    betas=["server-side-fallback-2026-07-01"], fallbacks="default",        # optional: re-route refusals to another Claude model
-    cache_control={"type": "ephemeral"},                                    # top-level automatic caching of the conversation tail
+    betas=["server-side-fallback-2026-07-01"],
+    fallbacks="default",  # optional: re-route refusals to another Claude model
+    cache_control={"type": "ephemeral"},  # top-level automatic caching of the conversation tail
 )
 ```
 
@@ -247,11 +297,25 @@ come from the per-model pages — verify both at config load (`client.models.lis
 
 ```python
 r = client.responses.create(
-    model="gpt-6.1-sol", instructions=system_text, input=items, max_output_tokens=req.max_tokens,
-    reasoning={"effort": req.effort}, tool_choice="auto", parallel_tool_calls=True,
-    tools=[{"type": "function", "name": t.name, "description": t.description,
-            "parameters": t.input_schema, "strict": True} for t in req.tools],
-    store=False)                                       # ZDR projects: do not persist responses [verify]
+    model="gpt-6.1-sol",
+    instructions=system_text,
+    input=items,
+    max_output_tokens=req.max_tokens,
+    reasoning={"effort": req.effort},
+    tool_choice="auto",
+    parallel_tool_calls=True,
+    tools=[
+        {
+            "type": "function",
+            "name": t.name,
+            "description": t.description,
+            "parameters": t.input_schema,
+            "strict": True,
+        }
+        for t in req.tools
+    ],
+    store=False,
+)  # ZDR projects: do not persist responses [verify]
 ```
 
 | Concern | Anthropic | OpenAI Responses |
@@ -292,7 +356,9 @@ returns a pydantic object. `json_object` (JSON mode) only guarantees valid JSON 
 ### 3.5 Vendor separation is validated at config load
 
 ```python
-assert cfg.auditor.vendor != cfg.brain.vendor and cfg.fallback.vendor != cfg.brain.vendor   # SPEC §4, §12, §17
+assert (
+    cfg.auditor.vendor != cfg.brain.vendor and cfg.fallback.vendor != cfg.brain.vendor
+)  # SPEC §4, §12, §17
 assert host(cfg.fallback.base_url) != host(cfg.brain.base_url)
 assert cfg.tier2.vendor == "self_hosted" and cfg.tier2.region in UAE_REGIONS
 ```
@@ -318,14 +384,41 @@ chunked inside the port. Deploy one instance in the vault's VPC/subnet, no publi
 vault's object store; log model calls with hashes only.
 
 ```python
-class VaultRef(BaseModel): doc_id: str; version: int; pages: list[int] | None = None   # never content
-class Tier2Metadata(BaseModel):                       # the ONLY thing allowed out
-    doc_id: str; doc_type: Literal["passport", "id", "visa", "trade_licence", "bank_statement", "contract",
-                                   "insurance", "medical", "legal", "banking_details", "other"]
-    title: str; parties_hash: list[str]; issued: date | None; expiry: date | None
-    amounts: list[tuple[Decimal, str]]; language: str; renewal_action: str | None; confidence: float
+class VaultRef(BaseModel):
+    doc_id: str
+    version: int
+    pages: list[int] | None = None  # never content
+
+
+class Tier2Metadata(BaseModel):  # the ONLY thing allowed out
+    doc_id: str
+    doc_type: Literal[
+        "passport",
+        "id",
+        "visa",
+        "trade_licence",
+        "bank_statement",
+        "contract",
+        "insurance",
+        "medical",
+        "legal",
+        "banking_details",
+        "other",
+    ]
+    title: str
+    parties_hash: list[str]
+    issued: date | None
+    expiry: date | None
+    amounts: list[tuple[Decimal, str]]
+    language: str
+    renewal_action: str | None
+    confidence: float
+
+
 class Tier2ModelPort(Protocol):
-    def extract(self, ref: VaultRef, task: Literal["classify", "expiry", "summary_fields"]) -> Tier2Metadata: ...
+    def extract(
+        self, ref: VaultRef, task: Literal["classify", "expiry", "summary_fields"]
+    ) -> Tier2Metadata: ...
 ```
 
 The implementation resolves `ref` to decrypted bytes *inside the vault boundary*, runs the private model with
